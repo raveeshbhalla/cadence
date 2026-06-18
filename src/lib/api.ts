@@ -94,6 +94,15 @@ export const api = {
     return invoke<string>("export_data", { json, csv });
   },
 
+  /** Fire a native notification (requests permission once). */
+  async notify(title: string, body: string): Promise<void> {
+    if (!isTauri) return;
+    const n = await import("@tauri-apps/plugin-notification");
+    let granted = await n.isPermissionGranted();
+    if (!granted) granted = (await n.requestPermission()) === "granted";
+    if (granted) n.sendNotification({ title, body });
+  },
+
   /** Open a URL in the default browser. */
   async openUrl(url: string): Promise<void> {
     if (!isTauri) {

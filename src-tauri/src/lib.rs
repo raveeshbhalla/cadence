@@ -220,6 +220,7 @@ pub fn run() {
     config::init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             setup_tray(app)?;
             Ok(())

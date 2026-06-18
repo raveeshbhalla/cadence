@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { C } from "../theme";
 import { fmtTime } from "../lib/format";
 import { diffDays, weekdayShort } from "../lib/dates";
@@ -41,6 +41,24 @@ export function MainApp() {
     const id = setInterval(tickNow, 20000);
     return () => clearInterval(id);
   }, [tickNow]);
+
+  // Fire a native notification a few minutes before today's meetings/blocks.
+  const notified = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isTauri) return;
+    const lead = 5; // minutes before
+    const upcoming = [
+      ...events.filter((e) => e.date === today).map((e) => ({ id: e.id, start: e.start, title: e.title, where: e.location })),
+      ...tasks.filter((t) => t.block && t.block.date === today && t.status !== "completed").map((t) => ({ id: t.id, start: t.block!.start, title: t.title, where: undefined as string | undefined })),
+    ];
+    for (const it of upcoming) {
+      const mins = it.start - now;
+      if (mins <= lead && mins > -2 && !notified.current.has(it.id)) {
+        notified.current.add(it.id);
+        api.notify(it.title, mins <= 0 ? "Starting now" : `In ${mins} min${it.where ? " · " + it.where : ""}`);
+      }
+    }
+  }, [events, tasks, now, today]);
 
   // The tray "Join next meeting" item signals the webview.
   useEffect(() => {
