@@ -8,9 +8,7 @@ export default function App() {
   const [entered, setEntered] = useState(false);
   const [checked, setChecked] = useState(false);
   const setAccount = useApp((s) => s.setAccount);
-  const loadTasks = useApp((s) => s.loadTasks);
-  const loadCalendar = useApp((s) => s.loadCalendar);
-  const loadEmails = useApp((s) => s.loadEmails);
+  const hydrate = useApp((s) => s.hydrate);
 
   // If tokens already exist (a prior sign-in), skip straight into the app.
   useEffect(() => {
@@ -20,13 +18,11 @@ export default function App() {
         if (acct) {
           setAccount(acct.email);
           setEntered(true);
-          loadTasks();
-          loadCalendar();
-          loadEmails();
+          hydrate();
         }
       })
       .finally(() => setChecked(true));
-  }, [setAccount, loadTasks, loadCalendar, loadEmails]);
+  }, [setAccount, hydrate]);
 
   if (!checked) return <div style={{ height: "100vh", background: "#0E0F13" }} />;
 
@@ -37,9 +33,7 @@ export default function App() {
       onEnter={(email) => {
         setAccount(email);
         setEntered(true);
-        loadTasks();
-        loadCalendar();
-        loadEmails();
+        hydrate();
       }}
     />
   );

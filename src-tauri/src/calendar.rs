@@ -1,5 +1,5 @@
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::google;
 
@@ -60,6 +60,59 @@ pub fn list(time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
         });
     }
     Ok(out)
+}
+
+/// Create a time-block event linked to a Cadence task. Returns the event id.
+pub fn create(title: &str, start: &str, end: &str, task_id: &str) -> Result<String, String> {
+    let token = google::token()?;
+    let body = json!({
+        "summary": title,
+        "start": { "dateTime": start },
+        "end": { "dateTime": end },
+        "extendedProperties": { "private": { "cadenceTaskId": task_id } }
+    });
+    let v: Value = google::client()
+        .post(format!("{BASE}/calendars/primary/events"))
+        .bearer_auth(&token)
+        .json(&body)
+        .send()
+        .map_err(|e| e.to_string())?
+        .json()
+        .map_err(|e| e.to_string())?;
+    Ok(v["id"].as_str().unwrap_or_default().to_string())
+}
+
+/// Move/resize an existing block event.
+pub fn update(event_id: &str, start: &str, end: &str) -> Result<(), String> {
+    let token = google::token()?;
+    let body = json!({ "start": { "dateTime": start }, "end": { "dateTime": end } });
+    let resp = google::client()
+        .patch(format!("{BASE}/calendars/primary/events/{event_id}"))
+        .bearer_auth(&token)
+        .json(&body)
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
+}
+
+/// Delete a block event (e.g. when unscheduling).
+pub fn delete(event_id: &str) -> Result<(), String> {
+    let token = google::token()?;
+    let resp = google::client()
+        .delete(format!("{BASE}/calendars/primary/events/{event_id}"))
+        .bearer_auth(&token)
+        .send()
+        .map_err(|e| e.to_string())?;
+    // 200/204 on success; 410 (already gone) is fine too.
+    if resp.status().is_success() || resp.status().as_u16() == 410 {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
 }
 
 fn urlencode(s: &str) -> String {

@@ -88,6 +88,19 @@ export const api = {
     return invoke<EventDto[]>("events_list", { timeMin, timeMax });
   },
 
+  /** Create a time-block event linked to a task. Returns the event id. */
+  async createEvent(title: string, start: string, end: string, taskId: string): Promise<string> {
+    return invoke<string>("event_create", { title, start, end, taskId });
+  },
+
+  async updateEvent(eventId: string, start: string, end: string): Promise<void> {
+    return invoke<void>("event_update", { eventId, start, end });
+  },
+
+  async deleteEvent(eventId: string): Promise<void> {
+    return invoke<void>("event_delete", { eventId });
+  },
+
   /** Unreplied Primary-inbox messages. */
   async listEmails(): Promise<EmailDto[]> {
     if (!isTauri) return [];

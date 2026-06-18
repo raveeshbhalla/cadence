@@ -25,6 +25,8 @@ export interface Task {
   meta?: string; // email sender meta
   /** Google Tasks list id this task belongs to (for write-back). */
   listId?: string;
+  /** Google Calendar event id backing this task's time block (for write-back). */
+  eventId?: string;
   /** True when placed on the grid. Mirrors `block != null`. */
   scheduled?: boolean;
   /** The grid slot, when scheduled. A task + block is one shared record. */

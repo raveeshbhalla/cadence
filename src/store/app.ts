@@ -19,7 +19,7 @@ import type { CategoryKey, Density } from "../theme";
 type GridLike = { id: string; start: number; end: number; title: string; cat: CategoryKey };
 import { DEFAULT_ACCENT, pxPerHour } from "../theme";
 import { makeSeed } from "../data/seed";
-import { addDays, dateKey, defaultWeekMonday, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
+import { addDays, dateKey, defaultWeekMonday, isoAt, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
 import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
@@ -90,12 +90,15 @@ export interface AppState {
   toggleEmailSource: () => void;
   toggleCal: (cat: CategoryKey) => void;
 
+  hydrate: () => void;
   loadTasks: () => void;
   loadCalendar: () => void;
   loadEmails: () => void;
   toggleTask: (id: string) => void;
   captureScheduled: (date: string, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
   placeTask: (taskId: string, date: string, start: number) => void;
+  /** Push a task's current block to Google Calendar (create or update the event). */
+  syncBlock: (taskId: string) => void;
   clearCompleted: () => void;
 
   // drag lifecycle
@@ -266,6 +269,25 @@ export const useApp = create<AppState>((set, get) => ({
     const tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, scheduled: true, block: { date, start, end: start + dur } } : x));
     const verb = wasScheduled ? "Rescheduled “" : "Added “";
     s.commit(verb + t.title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
+    get().syncBlock(taskId);
+  },
+
+  // Create or update the Google Calendar event backing a task's time block.
+  syncBlock: (taskId) => {
+    const s = get();
+    if (!isTauri || !s.account) return;
+    const t = s.tasks.find((x) => x.id === taskId);
+    if (!t || !t.block || t.source !== "gtasks") return;
+    const startIso = isoAt(t.block.date, t.block.start);
+    const endIso = isoAt(t.block.date, t.block.end);
+    if (t.eventId) {
+      api.updateEvent(t.eventId, startIso, endIso).catch(() => {});
+    } else {
+      api
+        .createEvent(t.title, startIso, endIso, t.id)
+        .then((eventId) => set((st) => ({ tasks: st.tasks.map((x) => (x.id === taskId ? { ...x, eventId } : x)) })))
+        .catch(() => {});
+    }
   },
 
   clearCompleted: () => set((s) => ({ tasks: s.tasks.filter((t) => t.status !== "completed") })),
@@ -279,6 +301,19 @@ export const useApp = create<AppState>((set, get) => ({
       h.has(cat) ? h.delete(cat) : h.add(cat);
       return { hidden: h };
     }),
+
+  // Load everything in order so blocks (calendar) can attach to tasks (Tasks API).
+  hydrate: async () => {
+    if (!isTauri) return;
+    try {
+      const dtos = await api.listTasks();
+      set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")] }));
+    } catch {
+      return; // not signed in → keep seed
+    }
+    get().loadCalendar();
+    get().loadEmails();
+  },
 
   // Pull live Google Tasks (replacing seed). On failure (not signed in) keep seed.
   // Preserves any already-loaded Gmail tasks (a different source).
@@ -314,15 +349,39 @@ export const useApp = create<AppState>((set, get) => ({
       .catch(() => {});
   },
 
-  // Pull meetings for the visible week from Google Calendar (replacing seed).
+  // Fetch a window of calendar events: plain ones become meetings; Cadence
+  // time-block events reattach to their tasks (so scheduling survives reload).
   loadCalendar: () => {
     const s = get();
     if (!isTauri || !s.account) return;
-    const timeMin = new Date(parseKey(s.viewMonday)).toISOString();
-    const timeMax = new Date(parseKey(addDays(s.viewMonday, 5))).toISOString();
+    const timeMin = new Date(parseKey(addDays(s.viewMonday, -14))).toISOString();
+    const timeMax = new Date(parseKey(addDays(s.viewMonday, 28))).toISOString();
     api
       .listEvents(timeMin, timeMax)
-      .then((dtos) => set({ events: dtos.filter((d) => !d.allDay && !d.cadenceTaskId).map(eventDtoToCalEvent) }))
+      .then((dtos) => {
+        const meetings: CalEvent[] = [];
+        const blocks = new Map<string, { eventId: string; date: string; start: number; end: number }>();
+        for (const d of dtos) {
+          if (d.allDay) continue;
+          if (d.cadenceTaskId) {
+            const sd = new Date(d.start);
+            const ed = new Date(d.end);
+            let st = sd.getHours() * 60 + sd.getMinutes();
+            let en = ed.getHours() * 60 + ed.getMinutes();
+            if (en <= st) en = st + 30;
+            blocks.set(d.cadenceTaskId, { eventId: d.id, date: dateKey(sd), start: st, end: en });
+          } else {
+            meetings.push(eventDtoToCalEvent(d));
+          }
+        }
+        set((st) => ({
+          events: meetings,
+          tasks: st.tasks.map((t) => {
+            const b = blocks.get(t.id);
+            return b ? { ...t, scheduled: true, eventId: b.eventId, block: { date: b.date, start: b.start, end: b.end } } : t;
+          }),
+        }));
+      })
       .catch(() => {});
   },
 

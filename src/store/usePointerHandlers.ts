@@ -137,6 +137,7 @@ export function usePointerHandlers() {
         const before = snap ? findSlot(snap, rid) : null;
         if (after && before && (before.start !== after.start || before.end !== after.end)) {
           s.commit("Resized “" + after.title + "” to " + fmtDur(after.end - after.start), {}, snap || undefined);
+          if (useApp.getState().tasks.some((t) => t.id === rid && t.block)) useApp.getState().syncBlock(rid);
         }
         return;
       }
@@ -161,6 +162,7 @@ export function usePointerHandlers() {
             if (t) {
               const tasks = s.tasks.map((x) => (x.id === ed.id && x.block ? { ...x, block: { date, start, end: start + ed.dur } } : x));
               s.commit(label, { tasks, eventDrag: null, dropTarget: null });
+              useApp.getState().syncBlock(ed.id);
             } else {
               const events = s.events.map((x) => (x.id === ed.id ? { ...x, date, start, end: start + ed.dur } : x));
               s.commit(label, { events, eventDrag: null, dropTarget: null });

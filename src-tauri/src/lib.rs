@@ -58,6 +58,25 @@ async fn events_list(time_min: String, time_max: String) -> Result<Vec<EventDto>
         .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn event_create(title: String, start: String, end: String, task_id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || calendar::create(&title, &start, &end, &task_id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn event_update(event_id: String, start: String, end: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || calendar::update(&event_id, &start, &end))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn event_delete(event_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || calendar::delete(&event_id)).await.map_err(|e| e.to_string())?
+}
+
 // ── Gmail ─────────────────────────────────────────────────────────
 #[tauri::command]
 async fn gmail_unreplied() -> Result<Vec<EmailDto>, String> {
@@ -85,6 +104,9 @@ pub fn run() {
             task_set_status,
             task_create,
             events_list,
+            event_create,
+            event_update,
+            event_delete,
             gmail_unreplied,
             ai_parse,
         ])

@@ -66,3 +66,10 @@ export function nextDow(today: string, dow: number): string {
   const delta = (dow - parseKey(today).getDay() + 7) % 7;
   return addDays(today, delta);
 }
+
+/** Combine a date key + minutes-from-midnight into an RFC3339 (UTC) timestamp. */
+export function isoAt(date: string, minutes: number): string {
+  const d = parseKey(date);
+  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return d.toISOString();
+}
