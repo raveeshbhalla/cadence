@@ -37,6 +37,9 @@ export interface AppState {
   density: Density;
   showEmail: boolean;
 
+  // account
+  account: string | null;
+
   // data
   events: CalEvent[];
   tasks: Task[];
@@ -101,12 +104,15 @@ export interface AppState {
   nextWeek: () => void;
   shareAvailability: () => void;
   setAccent: (a: string) => void;
+  setAccount: (email: string | null) => void;
 }
 
 export const useApp = create<AppState>((set, get) => ({
   accent: DEFAULT_ACCENT,
   density: "cozy",
   showEmail: true,
+
+  account: null,
 
   events: SEED_EVENTS,
   tasks: SEED_TASKS,
@@ -271,6 +277,7 @@ export const useApp = create<AppState>((set, get) => ({
   nextWeek: () => get().setToast("Next week (demo week is fixed)"),
   shareAvailability: () => get().setToast("3 open slots copied — paste into any email"),
   setAccent: (a) => set({ accent: a }),
+  setAccount: (email) => set({ account: email }),
 }));
 
 // Snapshot taken at the start of a resize gesture, restored for undo.

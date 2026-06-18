@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ACCENT_FG, DEFAULT_ACCENT } from "../theme";
 import { ArrowRight, BigCheck, CalendarIcon, CheckList, GoogleG, Mail, Sparkle } from "./Icon";
 import { Hoverable } from "./Hoverable";
+import { api, isTauri } from "../lib/api";
 
 type Step = "welcome" | "consent" | "connecting" | "done";
 
@@ -28,12 +29,32 @@ const cardDark: React.CSSProperties = {
   boxShadow: "0 30px 90px rgba(0,0,0,0.55)",
 };
 
-export function Onboarding({ onEnter }: { onEnter: () => void }) {
+export function Onboarding({ onEnter }: { onEnter: (email: string) => void }) {
   const [step, setStep] = useState<Step>("welcome");
+  const [email, setEmail] = useState("alex@gmail.com");
+  const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // Run the real OAuth flow (Tauri). Consent happens in the system browser.
+  const startRealSignIn = () => {
+    setError(null);
+    setStep("connecting");
+    api
+      .googleSignIn()
+      .then((acct) => {
+        setEmail(acct.email);
+        setStep("done");
+      })
+      .catch((e) => {
+        setError(typeof e === "string" ? e : "Sign-in failed. Please try again.");
+        setStep("welcome");
+      });
+  };
+
+  // Browser preview: walk the mocked consent → connecting → done screens.
+  const onContinue = () => (isTauri ? startRealSignIn() : setStep("consent"));
   const allow = () => {
     setStep("connecting");
     clearTimeout(timer.current);
@@ -80,13 +101,14 @@ export function Onboarding({ onEnter }: { onEnter: () => void }) {
           </p>
           <Hoverable
             as="button"
-            onClick={() => setStep("consent")}
+            onClick={onContinue}
             style={{ marginTop: 30, width: "100%", height: 46, display: "flex", alignItems: "center", justifyContent: "center", gap: 11, background: "#fff", color: "#1F1F1F", border: "none", borderRadius: 11, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}
             hover={{ background: "#F1F1F1" }}
           >
             <GoogleG />
             Continue with Google
           </Hoverable>
+          {error && <p style={{ fontSize: 12, lineHeight: 1.5, textAlign: "center", color: "#E5736B", margin: "12px auto 0", maxWidth: 330 }}>{error}</p>}
           <p style={{ fontSize: 11.5, lineHeight: 1.5, textAlign: "center", color: "#5C606A", margin: "16px auto 0", maxWidth: 320 }}>
             Cadence runs locally on your Mac. Your data stays in your Google account — we don't store it on our servers.
           </p>
@@ -147,7 +169,7 @@ export function Onboarding({ onEnter }: { onEnter: () => void }) {
         <div style={{ ...cardDark, padding: "56px 40px", textAlign: "center", animation: "stepIn .3s ease" }}>
           <div style={{ width: 46, height: 46, margin: "0 auto", borderRadius: "50%", border: "3px solid rgba(255,255,255,0.12)", borderTopColor: accent, animation: "spin .8s linear infinite" }} />
           <h2 style={{ fontSize: 19, fontWeight: 600, color: "#F4F5F7", margin: "26px 0 0" }}>Setting things up…</h2>
-          <p style={{ fontSize: 14, color: "#9CA0AA", margin: "8px 0 0" }}>Connecting your calendar, tasks and inbox.</p>
+          <p style={{ fontSize: 14, color: "#9CA0AA", margin: "8px 0 0" }}>{isTauri ? "Finish signing in with Google in your browser." : "Connecting your calendar, tasks and inbox."}</p>
           <Dots idx={idx} />
         </div>
       )}
@@ -177,7 +199,7 @@ export function Onboarding({ onEnter }: { onEnter: () => void }) {
           </div>
           <Hoverable
             as="button"
-            onClick={onEnter}
+            onClick={() => onEnter(email)}
             style={{ marginTop: 26, width: "100%", height: 46, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: accent, color: ACCENT_FG, border: "none", borderRadius: 11, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}
             hover={{ filter: "brightness(0.94)" }}
           >
