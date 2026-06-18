@@ -67,11 +67,32 @@ export function EventDetails() {
   );
 }
 
+/**
+ * Convert a Google Calendar HTML description into plain text: line breaks and
+ * block tags become newlines, anchors keep their href, remaining tags are
+ * stripped and HTML entities decoded. (No innerHTML rendering — avoids XSS.)
+ */
+function htmlToText(html: string): string {
+  let s = html
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\/\s*(p|div|li|tr|h[1-6]|ul|ol)\s*>/gi, "\n")
+    .replace(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
+      const text = label.replace(/<[^>]+>/g, "").trim();
+      return !text || text === href ? href : `${text} (${href})`;
+    })
+    .replace(/<[^>]+>/g, "");
+  // Decode HTML entities (&amp; &lt; &nbsp; &#39; …) via the DOM.
+  const ta = document.createElement("textarea");
+  ta.innerHTML = s;
+  s = ta.value;
+  return s.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /** Render description text, turning bare URLs into clickable links. */
 function DescriptionText({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  const parts = htmlToText(text).split(/(https?:\/\/[^\s]+)/g);
   return (
-    <>
+    <span style={{ whiteSpace: "pre-wrap" }}>
       {parts.map((p, i) =>
         /^https?:\/\//.test(p) ? (
           <a key={i} onClick={(e) => { e.preventDefault(); api.openUrl(p); }} href={p} style={{ color: "#7FB0FF", textDecoration: "none", cursor: "pointer" }}>
@@ -81,6 +102,6 @@ function DescriptionText({ text }: { text: string }) {
           <span key={i}>{p}</span>
         )
       )}
-    </>
+    </span>
   );
 }
