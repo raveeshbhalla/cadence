@@ -45,7 +45,7 @@ jobs:
       - name: Test
         run: pnpm test
       - name: Build DMG
-        run: pnpm app:build -- --bundles dmg
+        run: pnpm app:build --bundles dmg
       - name: Ensure GitHub release exists
         env:
           GH_TOKEN: ${{ github.token }}

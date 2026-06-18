@@ -102,6 +102,7 @@ export interface AppState {
   availabilityMode: boolean;
   availabilitySlots: { date: string; start: number; end: number }[];
   availabilityLabel: string;
+  availabilityPrompt: "idle" | "copied" | "blocked" | "dismissed";
 
   // triage mode
   triageMode: boolean;
@@ -192,6 +193,8 @@ export interface AppState {
   removeAvailabilitySlot: (index: number) => void;
   setAvailabilityLabel: (text: string) => void;
   copyAvailability: () => void;
+  blockAvailability: () => void;
+  dismissAvailabilityPrompt: () => void;
   exitAvailability: () => void;
   startTriage: () => void;
   triageNext: () => void;
@@ -249,6 +252,7 @@ export const useApp = create<AppState>()(
   availabilityMode: false,
   availabilitySlots: [],
   availabilityLabel: "",
+  availabilityPrompt: "idle",
 
   triageMode: false,
   triageIds: [],
@@ -782,12 +786,13 @@ export const useApp = create<AppState>()(
   toggleWeekends: () => set((s) => ({ showWeekends: !s.showWeekends })),
   // Enter availability mode: drag the grid to collect open slots, then copy them.
   shareAvailability: () =>
-    set({ availabilityMode: true, availabilitySlots: [], availabilityLabel: "", modal: null, toast: { msg: "Drag across the calendar to offer time slots", undo: false } }),
+    set({ availabilityMode: true, availabilitySlots: [], availabilityLabel: "", availabilityPrompt: "idle", modal: null, toast: { msg: "Drag across the calendar to offer time slots", undo: false } }),
   addAvailabilitySlot: (date, start, end) =>
     set((s) => ({
       availabilitySlots: [...s.availabilitySlots, { date, start, end }].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.start - b.start)),
+      availabilityPrompt: "idle",
     })),
-  removeAvailabilitySlot: (index) => set((s) => ({ availabilitySlots: s.availabilitySlots.filter((_, i) => i !== index) })),
+  removeAvailabilitySlot: (index) => set((s) => ({ availabilitySlots: s.availabilitySlots.filter((_, i) => i !== index), availabilityPrompt: "idle" })),
   setAvailabilityLabel: (text) => set({ availabilityLabel: text }),
   copyAvailability: () => {
     const s = get();
@@ -797,9 +802,37 @@ export const useApp = create<AppState>()(
     );
     const text = (s.availabilityLabel.trim() ? s.availabilityLabel.trim() + "\n" : "") + lines.join("\n");
     if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+    set({ availabilityPrompt: "copied" });
     s.setToast(`Copied ${s.availabilitySlots.length} slot${s.availabilitySlots.length > 1 ? "s" : ""} to clipboard`);
   },
-  exitAvailability: () => set({ availabilityMode: false, availabilitySlots: [], availabilityLabel: "" }),
+  blockAvailability: () => {
+    const s = get();
+    if (!s.availabilitySlots.length) return;
+    const label = s.availabilityLabel.trim();
+    const title = label ? "Hold: " + label : "Hold for availability";
+    const color = s.calendars.find((c) => c.primary)?.color;
+    const stamp = Date.now();
+    const events = s.availabilitySlots.map((sl, i) => ({
+      id: "ev" + stamp + i + Math.floor(Math.random() * 99),
+      date: sl.date,
+      start: sl.start,
+      end: sl.end,
+      title,
+      cat: "work" as const,
+      color,
+    }));
+    s.commit(`Blocked ${events.length} slot${events.length > 1 ? "s" : ""}`, { events: s.events.concat(events), availabilityPrompt: "blocked" });
+    if (isTauri && s.account) {
+      events.forEach((event) => {
+        api
+          .createMeeting(event.title, isoAt(event.date, event.start), isoAt(event.date, event.end))
+          .then((eventId) => useApp.setState((st) => ({ events: st.events.map((e) => (e.id === event.id ? { ...e, id: eventId } : e)) })))
+          .catch(() => {});
+      });
+    }
+  },
+  dismissAvailabilityPrompt: () => set({ availabilityPrompt: "dismissed" }),
+  exitAvailability: () => set({ availabilityMode: false, availabilitySlots: [], availabilityLabel: "", availabilityPrompt: "idle" }),
 
   // Triage: queue up unscheduled overdue + today tasks for keyboard slotting.
   startTriage: () => {
