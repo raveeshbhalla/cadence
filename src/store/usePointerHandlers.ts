@@ -212,6 +212,10 @@ export function usePointerHandlers() {
           if (isPast(date, a, s.today, s.now)) {
             s.setInteraction({ selDrag: null });
             s.setToast("Can’t schedule in the past");
+          } else if (s.availabilityMode) {
+            // In availability mode, a drag collects an open slot (no event created).
+            s.setInteraction({ selDrag: null });
+            s.addAvailabilitySlot(date, a, b);
           } else {
             s.setInteraction({ selDrag: null, modal: "capture", captureText: "", captureContext: { asBlock: true, date, start: a, end: b } });
           }
@@ -244,6 +248,7 @@ export function usePointerHandlers() {
         if (s.modal) s.closeModal();
         else if (s.editorId) s.closeEditor();
         else if (s.eventDetailsId) s.closeEventDetails();
+        else if (s.availabilityMode) s.exitAvailability();
       }
     };
 

@@ -22,7 +22,7 @@ import type { CategoryKey, Density } from "../theme";
 type GridLike = { id: string; start: number; end: number; title: string; cat: CategoryKey };
 import { DEFAULT_ACCENT, pxPerHour } from "../theme";
 import { makeSeed } from "../data/seed";
-import { addDays, dateKey, defaultWeekMonday, isoAt, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
+import { addDays, dateKey, defaultWeekMonday, isoAt, monthShort, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
 import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
@@ -84,6 +84,11 @@ export interface AppState {
   // ephemeral
   toast: ToastState | null;
   undoSnap: UndoSnapshot | null;
+
+  // share-availability mode
+  availabilityMode: boolean;
+  availabilitySlots: { date: string; start: number; end: number }[];
+  availabilityLabel: string;
 
   // interaction
   drag: DragState | null;
@@ -147,6 +152,11 @@ export interface AppState {
   prevWeek: () => void;
   nextWeek: () => void;
   shareAvailability: () => void;
+  addAvailabilitySlot: (date: string, start: number, end: number) => void;
+  removeAvailabilitySlot: (index: number) => void;
+  setAvailabilityLabel: (text: string) => void;
+  copyAvailability: () => void;
+  exitAvailability: () => void;
   setAccent: (a: string) => void;
   setDensity: (d: Density) => void;
   setAccount: (email: string | null) => void;
@@ -186,6 +196,10 @@ export const useApp = create<AppState>()(
 
   toast: null,
   undoSnap: null,
+
+  availabilityMode: false,
+  availabilitySlots: [],
+  availabilityLabel: "",
 
   drag: null,
   eventDrag: null,
@@ -531,7 +545,26 @@ export const useApp = create<AppState>()(
     set((s) => ({ viewMonday: addDays(s.viewMonday, 7) }));
     get().loadCalendar();
   },
-  shareAvailability: () => get().setToast("3 open slots copied — paste into any email"),
+  // Enter availability mode: drag the grid to collect open slots, then copy them.
+  shareAvailability: () =>
+    set({ availabilityMode: true, availabilitySlots: [], availabilityLabel: "", modal: null, toast: { msg: "Drag across the calendar to offer time slots", undo: false } }),
+  addAvailabilitySlot: (date, start, end) =>
+    set((s) => ({
+      availabilitySlots: [...s.availabilitySlots, { date, start, end }].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.start - b.start)),
+    })),
+  removeAvailabilitySlot: (index) => set((s) => ({ availabilitySlots: s.availabilitySlots.filter((_, i) => i !== index) })),
+  setAvailabilityLabel: (text) => set({ availabilityLabel: text }),
+  copyAvailability: () => {
+    const s = get();
+    if (!s.availabilitySlots.length) return;
+    const lines = s.availabilitySlots.map(
+      (sl) => `• ${weekdayShort(sl.date)} ${monthShort(sl.date)} ${parseKey(sl.date).getDate()}, ${fmtTime(sl.start)} – ${fmtTime(sl.end)}`
+    );
+    const text = (s.availabilityLabel.trim() ? s.availabilityLabel.trim() + "\n" : "") + lines.join("\n");
+    if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+    s.setToast(`Copied ${s.availabilitySlots.length} slot${s.availabilitySlots.length > 1 ? "s" : ""} to clipboard`);
+  },
+  exitAvailability: () => set({ availabilityMode: false, availabilitySlots: [], availabilityLabel: "" }),
   setAccent: (a) => set({ accent: a }),
   setDensity: (d) => set({ density: d }),
   setAccount: (email) => set({ account: email }),

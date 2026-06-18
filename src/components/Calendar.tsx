@@ -102,6 +102,7 @@ function DayColumn({
   nowTop,
   maskH,
   px,
+  avail,
 }: {
   di: number;
   positioned: PositionedItem[];
@@ -113,8 +114,10 @@ function DayColumn({
   nowTop: number;
   maskH: number;
   px: number;
+  avail: { sl: { date: string; start: number; end: number }; i: number }[];
 }) {
   const startSelDrag = useApp((s) => s.startSelDrag);
+  const removeSlot = useApp((s) => s.removeAvailabilitySlot);
   const onDown = (e: PointerEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     startSelDrag(di, e.clientY, r.top);
@@ -128,6 +131,35 @@ function DayColumn({
     >
       {positioned.map((pi) => (
         <GridBlock key={pi.item.id} pi={pi} />
+      ))}
+
+      {avail.map(({ sl, i }) => (
+        <div
+          key={i}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => removeSlot(i)}
+          title="Click to remove"
+          style={{
+            position: "absolute",
+            left: 2,
+            right: 2,
+            top: (sl.start / 60 - START_HOUR) * px,
+            height: Math.max(((sl.end - sl.start) / 60) * px, 18),
+            background: hexToRgba(accent, 0.22),
+            border: `1.5px dashed ${accent}`,
+            borderRadius: 7,
+            zIndex: 7,
+            cursor: "pointer",
+            color: accent,
+            fontSize: 10.5,
+            fontWeight: 600,
+            padding: "3px 7px",
+            boxSizing: "border-box",
+            overflow: "hidden",
+          }}
+        >
+          {fmtTime(sl.start)}–{fmtTime(sl.end)}
+        </div>
       ))}
 
       {dragging && maskH > 0 && (
@@ -191,6 +223,7 @@ export function Calendar() {
   const viewMonday = useApp((s) => s.viewMonday);
   const dropTarget = useApp((s) => s.dropTarget);
   const selDrag = useApp((s) => s.selDrag);
+  const availabilitySlots = useApp((s) => s.availabilitySlots);
   const dragActive = useApp((s) => !!(s.drag && s.drag.active));
   const eventDragActive = useApp((s) => !!(s.eventDrag && s.eventDrag.active));
   const prev = useApp((s) => s.prevWeek);
@@ -200,6 +233,10 @@ export function Calendar() {
   const px = pxPerHour(density);
   const dragging = dragActive || eventDragActive;
   const week = useMemo(() => weekDates(viewMonday), [viewMonday]);
+  const availByDay = useMemo(
+    () => week.map((date) => availabilitySlots.map((sl, i) => ({ sl, i })).filter((x) => x.sl.date === date)),
+    [week, availabilitySlots]
+  );
   const gridHeight = (END_HOUR - START_HOUR) * px;
   const nowTop = (now / 60 - START_HOUR) * px;
 
@@ -320,6 +357,7 @@ export function Calendar() {
                   maskH={maskH}
                   ghost={dropTarget && dropTarget.di === di ? dropTarget : null}
                   sel={selDrag && selDrag.di === di ? selDrag : null}
+                  avail={availByDay[di]}
                 />
               );
             })}

@@ -13,6 +13,7 @@ import { CommandPalette } from "./CommandPalette";
 import { Settings } from "./Settings";
 import { TaskEditor } from "./TaskEditor";
 import { EventDetails } from "./EventDetails";
+import { AvailabilityPanel } from "./AvailabilityPanel";
 import { Toast } from "./Toast";
 import { DragChip } from "./DragChip";
 
@@ -22,6 +23,7 @@ export function MainApp() {
   const modal = useApp((s) => s.modal);
   const editorId = useApp((s) => s.editorId);
   const eventDetailsId = useApp((s) => s.eventDetailsId);
+  const availabilityMode = useApp((s) => s.availabilityMode);
   const tickNow = useApp((s) => s.tickNow);
   const events = useApp((s) => s.events);
   const tasks = useApp((s) => s.tasks);
@@ -69,6 +71,7 @@ export function MainApp() {
       {modal === "settings" && <Settings />}
       {editorId && <TaskEditor />}
       {eventDetailsId && <EventDetails />}
+      {availabilityMode && <AvailabilityPanel />}
     </div>
   );
 }
