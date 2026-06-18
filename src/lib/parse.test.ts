@@ -25,6 +25,28 @@ describe("parseCapture", () => {
     expect(parseCapture("Call at 3", TODAY).time).toBe(15 * 60);
   });
 
+  it("parses time ranges into start + duration", () => {
+    const a = parseCapture("Spin class 7:45am-9am tomorrow", TODAY);
+    expect(a.title).toBe("Spin class");
+    expect(a.time).toBe(7 * 60 + 45);
+    expect(a.est).toBe(75);
+    expect(a.date).toBe("2026-06-18");
+
+    const b = parseCapture("Lunch 12-1pm", TODAY);
+    expect(b.time).toBe(12 * 60);
+    expect(b.est).toBe(60);
+
+    const c = parseCapture("Review 2-3:30pm", TODAY);
+    expect(c.time).toBe(14 * 60);
+    expect(c.est).toBe(90);
+  });
+
+  it("does not treat a bare number range as a time", () => {
+    const p = parseCapture("Buy 2-3 apples", TODAY);
+    expect(p.time).toBeNull();
+    expect(p.title).toBe("Buy 2-3 apples");
+  });
+
   it("no date → inbox (null date)", () => {
     const p = parseCapture("Email Bob back", TODAY);
     expect(p.title).toBe("Email Bob back");

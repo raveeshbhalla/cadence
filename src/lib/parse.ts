@@ -42,19 +42,42 @@ export function parseCapture(text: string, today: string): ParsedCapture {
     cat = catFromProject(project);
     t = t.replace(m[0], " ");
   }
+  // Time range, e.g. "7:45am-9am", "2-3pm", "9 to 10:30am" → start + duration.
+  // (Parsed before plain duration so the range's digits aren't mistaken for one.)
+  if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i))) {
+    const ap1 = m[3] || m[6];
+    const ap2 = m[6] || m[3];
+    // Only treat as a time range if a meridiem or ":" is present (avoid "2-3 things").
+    if (ap1 || ap2 || m[2] || m[5]) {
+      const to24 = (h: string, mm: string | undefined, ap: string | undefined) => {
+        let hh = parseInt(h) % (ap ? 12 : 24);
+        if (ap && /pm/i.test(ap)) hh += 12;
+        return hh * 60 + (mm ? parseInt(mm) : 0);
+      };
+      const startMin = to24(m[1], m[2], ap1);
+      const endMin = to24(m[4], m[5], ap2);
+      if (endMin > startMin) {
+        time = startMin;
+        est = endMin - startMin;
+        t = t.replace(m[0], " ");
+      }
+    }
+  }
+  // Explicit duration, e.g. "~90m", "1h", "45 min" (overrides a range's implied length).
   if ((m = t.match(/~?\s*(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/i))) {
     const n = parseFloat(m[1]);
     const u = m[2].toLowerCase();
     est = u[0] === "h" ? Math.round(n * 60) : Math.round(n);
     t = t.replace(m[0], " ");
   }
-  if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i))) {
+  if (time == null && (m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i))) {
     let h = parseInt(m[1]) % 12;
     if (/pm/i.test(m[3])) h += 12;
     const mm = m[2] ? parseInt(m[2]) : 0;
     time = h * 60 + mm;
     t = t.replace(m[0], " ");
-  } else if ((m = t.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b/i))) {
+  }
+  if (time == null && (m = t.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b/i))) {
     let h = parseInt(m[1]);
     const mm = m[2] ? parseInt(m[2]) : 0;
     if (h < 7) h += 12;

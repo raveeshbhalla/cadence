@@ -77,7 +77,7 @@ export function Capture() {
           ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 16px", background: C.modalFooterBg, borderTop: `1px solid ${C.border}` }}>
-          <span style={{ fontSize: 11.5, color: C.textFaint }}>Parsed with gpt‑5.4‑nano · saved to Google Tasks</span>
+          <span style={{ fontSize: 11.5, color: C.textFaint }}>Live preview · refined with gpt‑4o‑mini on add</span>
           <button onClick={confirmCapture} style={{ background: accent, color: ACCENT_FG, fontWeight: 600, fontSize: 13, border: "none", borderRadius: 8, padding: "7px 16px", cursor: "pointer" }}>
             Add <span style={{ opacity: 0.6 }}>↵</span>
           </button>
