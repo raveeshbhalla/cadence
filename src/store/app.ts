@@ -864,12 +864,13 @@ function eventDtoToCalEvent(d: EventDto): CalEvent {
   const start = s.getHours() * 60 + s.getMinutes();
   let end = e.getHours() * 60 + e.getMinutes();
   if (end <= start) end = start + 30; // crosses midnight / zero-length guard
+  const titled = d.title && d.title !== "(no title)";
   return {
     id: d.id,
     date: dateKey(s),
     start,
     end,
-    title: d.title || "(no title)",
+    title: titled ? d.title : d.location || "(untitled)",
     cat: "work",
     calendarId: d.calendarId,
     color: d.color,

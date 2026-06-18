@@ -119,3 +119,15 @@ input {
 .hoverable {
   transition: background 0.12s ease, color 0.12s ease;
 }
+
+/* Honor the macOS "Reduce Motion" accessibility setting. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
