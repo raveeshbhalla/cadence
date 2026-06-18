@@ -2,6 +2,7 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import { C, CATS } from "../theme";
 import { fmtDur, fmtTime } from "../lib/format";
 import { weekdayShort } from "../lib/dates";
+import { api } from "../lib/api";
 import { useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
 import { overlay } from "./overlay";
@@ -46,7 +47,20 @@ export function TaskEditor() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 10px" }}>
           <span style={{ width: 9, height: 9, borderRadius: 3, background: c.dot, flex: "none" }} />
           <span style={{ fontSize: 11.5, color: C.textMute2 }}>{metaBits.join(" · ")}</span>
-          <span style={{ marginLeft: "auto", fontSize: 11, color: C.textFaint2 }}>esc to close</span>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+            {task.emailThreadId && (
+              <Hoverable
+                as="button"
+                title="Open email in Gmail"
+                onClick={() => api.openUrl(`https://mail.google.com/mail/u/0/#all/${task.emailThreadId}`)}
+                style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: C.textMute2, cursor: "pointer", fontSize: 12, padding: 0 }}
+                hover={{ color: "#fff" }}
+              >
+                Open email <span style={{ fontSize: 13 }}>↗</span>
+              </Hoverable>
+            )}
+            <span style={{ fontSize: 11, color: C.textFaint2 }}>esc to close</span>
+          </div>
         </div>
         <input
           autoFocus
