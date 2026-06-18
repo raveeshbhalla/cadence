@@ -8,6 +8,7 @@ import { Calendar } from "./Calendar";
 import { TaskRail } from "./TaskRail";
 import { Capture } from "./Capture";
 import { CommandPalette } from "./CommandPalette";
+import { Settings } from "./Settings";
 import { Toast } from "./Toast";
 import { DragChip } from "./DragChip";
 
@@ -36,6 +37,7 @@ export function MainApp() {
       <Toast />
       {modal === "capture" && <Capture />}
       {modal === "palette" && <CommandPalette />}
+      {modal === "settings" && <Settings />}
     </div>
   );
 }

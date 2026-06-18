@@ -26,6 +26,7 @@ export function CommandPalette() {
       { id: "email", name: (s.showEmail ? "Hide" : "Show") + " Gmail · Primary", hint: "Email source", glyph: "✉", run: () => { s.toggleEmailSource(); s.closeModal(); } },
       { id: "today", name: "Go to today", hint: "", glyph: "◆", run: () => { s.closeModal(); s.gotoToday(); } },
       { id: "clear", name: "Clear completed", hint: "", glyph: "✓", run: () => { s.clearCompleted(); s.closeModal(); s.setToast("Cleared completed"); } },
+      { id: "settings", name: "Settings", hint: "", glyph: "⚙", run: () => s.openSettings() },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.sidebarHidden, s.showEmail]);

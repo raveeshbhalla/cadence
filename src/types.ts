@@ -124,7 +124,7 @@ export interface UndoSnapshot {
   tasks: Task[];
 }
 
-export type ModalKind = "capture" | "palette" | null;
+export type ModalKind = "capture" | "palette" | "settings" | null;
 
 export interface CaptureContext {
   asBlock: true;

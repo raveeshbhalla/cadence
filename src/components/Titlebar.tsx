@@ -1,7 +1,7 @@
 import { C } from "../theme";
 import { useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
-import { Search, SidebarIcon, Sparkle } from "./Icon";
+import { Gear, Search, SidebarIcon, Sparkle } from "./Icon";
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -27,6 +27,7 @@ export function Titlebar() {
   const accent = useApp((s) => s.accent);
   const toggleSidebar = useApp((s) => s.toggleSidebar);
   const openPalette = useApp((s) => s.openPalette);
+  const openSettings = useApp((s) => s.openSettings);
 
   return (
     <div
@@ -71,6 +72,16 @@ export function Titlebar() {
         <Search />
         <span style={{ flex: 1, textAlign: "left" }}>Search or run a command</span>
         <span style={{ fontSize: 11, color: C.textFaint, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, padding: "0 5px" }}>⌘K</span>
+      </Hoverable>
+
+      <Hoverable
+        as="button"
+        title="Settings"
+        onClick={openSettings}
+        style={{ marginLeft: 10, background: "none", border: "none", color: C.textMute3, cursor: "pointer", padding: 3, display: "flex" }}
+        hover={{ color: "#fff" }}
+      >
+        <Gear />
       </Hoverable>
     </div>
   );

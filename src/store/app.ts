@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   CalEvent,
   CaptureContext,
@@ -30,6 +31,15 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 const INITIAL_MONDAY = defaultWeekMonday();
 const INITIAL_TODAY = todayKey();
 const SEED = makeSeed(INITIAL_MONDAY, INITIAL_TODAY);
+
+const NOOP_STORAGE: Storage = {
+  length: 0,
+  clear: () => {},
+  getItem: () => null,
+  key: () => null,
+  removeItem: () => {},
+  setItem: () => {},
+};
 
 export interface AppState {
   // settings
@@ -79,6 +89,7 @@ export interface AppState {
 
   openCapture: () => void;
   openPalette: () => void;
+  openSettings: () => void;
   closeModal: () => void;
   togglePalette: () => void;
   setCaptureText: (t: string) => void;
@@ -115,10 +126,14 @@ export interface AppState {
   nextWeek: () => void;
   shareAvailability: () => void;
   setAccent: (a: string) => void;
+  setDensity: (d: Density) => void;
   setAccount: (email: string | null) => void;
+  signOut: () => void;
 }
 
-export const useApp = create<AppState>((set, get) => ({
+export const useApp = create<AppState>()(
+  persist(
+    (set, get) => ({
   accent: DEFAULT_ACCENT,
   density: "cozy",
   showEmail: true,
@@ -181,6 +196,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   openCapture: () => set({ modal: "capture", captureText: "", captureContext: null }),
   openPalette: () => set({ modal: "palette", paletteQuery: "" }),
+  openSettings: () => set({ modal: "settings" }),
   closeModal: () => set({ modal: null, captureContext: null }),
   togglePalette: () => set((s) => ({ modal: s.modal === "palette" ? null : "palette", paletteQuery: "" })),
   setCaptureText: (t) => set({ captureText: t }),
@@ -432,8 +448,29 @@ export const useApp = create<AppState>((set, get) => ({
   },
   shareAvailability: () => get().setToast("3 open slots copied — paste into any email"),
   setAccent: (a) => set({ accent: a }),
+  setDensity: (d) => set({ density: d }),
   setAccount: (email) => set({ account: email }),
-}));
+  signOut: () => {
+    const done = () => {
+      set({ account: null });
+      if (isTauri) location.reload();
+    };
+    api.signOut().then(done, done);
+  },
+    }),
+    {
+      name: "cadence-settings",
+      storage: createJSONStorage(() => (typeof localStorage !== "undefined" ? localStorage : NOOP_STORAGE)),
+      partialize: (s) => ({
+        accent: s.accent,
+        density: s.density,
+        showEmail: s.showEmail,
+        sidebarHidden: s.sidebarHidden,
+        archivedShown: s.archivedShown,
+      }),
+    }
+  )
+);
 
 // ── Google Tasks mapping + write-back helpers ────────────────────
 function fmtCompleted(iso: string): string {
