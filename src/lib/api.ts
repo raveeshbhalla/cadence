@@ -192,9 +192,10 @@ export const api = {
     return invoke<void>("gmail_archive", { threadId });
   },
 
-  /** Parse a capture line with the model. Throws if unavailable. */
+  /** Parse a capture line with the model (locale-aware). Throws if unavailable. */
   async aiParse(text: string, today: string): Promise<AiParse> {
-    return invoke<AiParse>("ai_parse", { text, today });
+    const locale = typeof navigator !== "undefined" ? navigator.language : "en-US";
+    return invoke<AiParse>("ai_parse", { text, today, locale });
   },
 };
 

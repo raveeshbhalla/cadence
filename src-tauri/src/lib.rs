@@ -164,8 +164,8 @@ async fn gmail_archive(thread_id: String) -> Result<(), String> {
 
 // ── OpenAI capture parsing ────────────────────────────────────────
 #[tauri::command]
-async fn ai_parse(text: String, today: String) -> Result<AiParse, String> {
-    tauri::async_runtime::spawn_blocking(move || openai::parse(&text, &today))
+async fn ai_parse(text: String, today: String, locale: String) -> Result<AiParse, String> {
+    tauri::async_runtime::spawn_blocking(move || openai::parse(&text, &today, &locale))
         .await
         .map_err(|e| e.to_string())?
 }

@@ -1,7 +1,7 @@
 import { useMemo, type PointerEvent } from "react";
 import { ACCENT_FG, C, CATS, END_HOUR, START_HOUR, pxPerHour } from "../theme";
 import type { DropTarget, GridItem, SelDragState } from "../types";
-import { fmtTime } from "../lib/format";
+import { fmtDur, fmtTime } from "../lib/format";
 import { dayOfMonth, monthLabel, weekdayShort } from "../lib/dates";
 import { pack } from "../lib/pack";
 import { dayLoad } from "../store/selectors";
@@ -90,7 +90,7 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
             {item.conflict && <span title="Overlaps another meeting" style={{ color: C.overdue, marginRight: 3 }}>⚠</span>}
             {shownTitle}
           </div>
-          <div style={{ opacity: 0.72, fontSize: 10, whiteSpace: "nowrap" }}>{fmtTime(item.start)}</div>
+          <div style={{ opacity: 0.72, fontSize: 10, whiteSpace: "nowrap" }}>{fmtTime(item.start)} · {fmtDur(item.end - item.start)}</div>
         </div>
       </div>
     </div>

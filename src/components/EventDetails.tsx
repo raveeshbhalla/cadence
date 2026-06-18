@@ -1,5 +1,5 @@
 import { C } from "../theme";
-import { fmtTime } from "../lib/format";
+import { fmtDur, fmtTime } from "../lib/format";
 import { monthShort, parseKey, weekdayShort } from "../lib/dates";
 import { meetingLink } from "../lib/meeting";
 import { api } from "../lib/api";
@@ -14,7 +14,7 @@ export function EventDetails() {
   if (!ev) return null;
 
   const d = parseKey(ev.date);
-  const when = `${weekdayShort(ev.date)}, ${monthShort(ev.date)} ${d.getDate()} · ${fmtTime(ev.start)} – ${fmtTime(ev.end)}`;
+  const when = `${weekdayShort(ev.date)}, ${monthShort(ev.date)} ${d.getDate()} · ${fmtTime(ev.start)} – ${fmtTime(ev.end)} · ${fmtDur(ev.end - ev.start)}`;
   const color = ev.color || "#5B9BFF";
   const join = meetingLink(ev);
   const localTz = (() => {

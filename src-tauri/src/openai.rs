@@ -24,7 +24,7 @@ pub struct AiParse {
     pub list: Option<String>,
 }
 
-pub fn parse(text: &str, today: &str) -> Result<AiParse, String> {
+pub fn parse(text: &str, today: &str, locale: &str) -> Result<AiParse, String> {
     let key = config::get().openai_api_key.clone();
     if key.is_empty() {
         return Err("OPENAI_API_KEY not set".into());
@@ -32,6 +32,8 @@ pub fn parse(text: &str, today: &str) -> Result<AiParse, String> {
 
     let system = format!(
         "You parse one natural-language task entry into JSON. Today is {today} (the user's local date). \
+         The user's locale is {locale}; interpret relative-time words in their language \
+         (e.g. German 'übermorgen' = +2 days, Spanish 'lunes que viene' = next Monday, French 'ce soir' = today). \
          Return ONLY a JSON object with these keys: \
          title (string: the task name with any date/time/duration/list words removed), \
          date (string 'YYYY-MM-DD' or null — resolve relative words like 'today', 'tomorrow', 'thursday', 'next tuesday' against today; never pick a past date), \
