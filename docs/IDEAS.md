@@ -89,3 +89,28 @@ New ideas only (the agents were given Round 1 as an avoid-list). High convergenc
 | 59 | **Day theming** (assign each weekday a theme, warn on violation) | "devoting entire days to types of work… macro batching" | quidlo.com/blog/day-theming | ⏸ defer |
 
 ### This round — building #29 (all-day, fixes a bug), #30 (day/weekend views), #31 (search), #32 (notifications), #33 (export)
+
+---
+
+## Round 3 (2 agents: accessibility+reliability, delight+onboarding) — still producing new ideas
+
+| # | Idea | User problem (cited) | Source | Disposition |
+|---|------|----------------------|--------|-------------|
+| 60 | **Non-color status encoding** (icon + aria text for tentative/declined/category) | WCAG 1.4.1: color alone fails; screen readers miss strikethrough | webaxe.org/strikethrough-html-accessibility | 📋 next (a11y) |
+| 61 | **Accessible grid semantics** (self-contained aria names, live regions) | "Agenda view is the only one with screen-reader support" | support.google.com/calendar/answer/6101541 | ⏸ defer (a11y pass) |
+| 62 | **Respect prefers-reduced-motion** | vestibular triggers; WCAG 2.3.3 | developer.mozilla.org prefers-reduced-motion | ✅ Built |
+| 63 | **Reflow at 200%+ zoom** (rem units, agenda fallback) | "increase text size → columns overlap, text disappears" | inclusivedesigntoolkit.com/text_guidance | ⏸ defer |
+| 64 | **Timezone-discrepancy badge** ("created in NY, shown local") + fixed-offset warning | "fixed offset breaks during DST"; events in wrong tz | support.google.com/calendar/answer/37064 | 📋 next |
+| 65 | **Untitled-event fallback name** (synthesize from location/attendees) | events "appear without titles", become unfindable | trudigital freshdesk | ✅ Built |
+| 66 | **Degenerate-duration rendering** (zero/negative/ultra-long) | zero-duration + "invisible event blocking" bugs | support.google.com/calendar/thread/147993259 | ✅ partly (min-height + end<=start guard) |
+| 67 | **Partial-sync verifier** (per-calendar count/etag check) | events "show on laptop, absent on phone"; silent no-op updates | everblog.com google-calendar-not-syncing | ⏸ defer |
+| 68 | **Auto-color/emoji that learns from your calendar** | "Emotify add-on"; GCal's "biggest design flaw" = color | androidpolice.com expanded-event-color | ⏸ defer (medium) |
+| 69 | **Tactile completion** (settle animation + optional sound/haptic) | Things 3 "subtle, deeply satisfying animations… every interaction feels real" | macstories.net things-3 review | 🔨 this round (animation) |
+| 70 | **Capture-anything paste bar w/ provenance** | Things 3 "highlight → task… works like magic"; Fantastical email-magic | macstories.net things-3 review | ⏸ defer (medium) |
+| 71 | **Positive free-time framing** ("2h open this afternoon" as an asset) | users want to "celebrate and protect" free time | morgen.so aesthetic-calendar | ✅ partly (free-time chip) |
+| 72 | **"Who am I meeting" face card from your own Gmail** | Vimcal dossiers loved but "don't always work"; privacy | vimcal.com; efficient.app | ⏸ defer (overlaps brief) |
+| 73 | **NL correction loop** (tap a wrong chip to fix, no retype) | Vimcal NL "delightful… but doesn't always work" → retype kills magic | efficient.app/apps/vimcal | 📋 next (medium) |
+| 74 | **60-second guided first-run ending in a populated calendar** | Akiflow "still figuring it out after 2 months"; want "intuitive immediately" | blog.rivva.app sunsama-vs-akiflow | ⏸ defer |
+| 75 | **One-sentence menu-bar day shape** ("Free until 2, then 3 meetings") | bolt-on widgets for "at-a-glance day shape" | efficient.app/apps/notion-calendar | ⏸ defer (have next-event title) |
+
+Round 3 still yielded ~14 novel ideas → not converged. Building #62/#65 (done) + #69; running Round 4 as a convergence test.
