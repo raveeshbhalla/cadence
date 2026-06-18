@@ -32,6 +32,20 @@ export interface EventDto {
   cadenceTaskId: string | null;
 }
 
+export interface EmailDto {
+  id: string;
+  sender: string;
+  subject: string;
+}
+
+export interface AiParse {
+  title: string;
+  date: string | null; // YYYY-MM-DD
+  time: number | null; // minutes from midnight
+  durationMin: number | null;
+  list: string | null;
+}
+
 export const api = {
   /** Begin Google OAuth (opens the system browser). Resolves when connected. */
   async googleSignIn(): Promise<Account> {
@@ -72,6 +86,17 @@ export const api = {
   async listEvents(timeMin: string, timeMax: string): Promise<EventDto[]> {
     if (!isTauri) return [];
     return invoke<EventDto[]>("events_list", { timeMin, timeMax });
+  },
+
+  /** Unreplied Primary-inbox messages. */
+  async listEmails(): Promise<EmailDto[]> {
+    if (!isTauri) return [];
+    return invoke<EmailDto[]>("gmail_unreplied");
+  },
+
+  /** Parse a capture line with the model. Throws if unavailable. */
+  async aiParse(text: string, today: string): Promise<AiParse> {
+    return invoke<AiParse>("ai_parse", { text, today });
   },
 };
 

@@ -22,7 +22,7 @@ import { makeSeed } from "../data/seed";
 import { addDays, dateKey, defaultWeekMonday, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
-import { api, isTauri, type EventDto, type TaskDto } from "../lib/api";
+import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
 import { usePointer } from "./pointer";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -92,6 +92,7 @@ export interface AppState {
 
   loadTasks: () => void;
   loadCalendar: () => void;
+  loadEmails: () => void;
   toggleTask: (id: string) => void;
   captureScheduled: (date: string, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
   placeTask: (taskId: string, date: string, start: number) => void;
@@ -182,10 +183,29 @@ export const useApp = create<AppState>((set, get) => ({
   setCaptureText: (t) => set({ captureText: t }),
   setPaletteQuery: (q) => set({ paletteQuery: q }),
 
-  confirmCapture: () => {
+  confirmCapture: async () => {
     const s = get();
     const ctx = s.captureContext;
-    const p = parseCapture(s.captureText, s.today);
+    let p = parseCapture(s.captureText, s.today);
+    // Upgrade the regex parse with the model when available (chips stayed instant).
+    if (isTauri && s.captureText.trim()) {
+      try {
+        const ai = await api.aiParse(s.captureText, s.today);
+        if (s.modal !== "capture") return; // dialog closed while we waited
+        const date = ai.date ?? p.date;
+        p = {
+          title: (ai.title || "").trim() || p.title,
+          project: ai.list ?? p.project,
+          cat: ai.list ? catFromProject(ai.list) : p.cat,
+          est: ai.durationMin ?? p.est,
+          time: ai.time ?? p.time,
+          date,
+          dayLabel: date ? dayLabelFor(date, s.today) : p.dayLabel,
+        };
+      } catch {
+        // model unavailable → keep the regex parse
+      }
+    }
     if (ctx && ctx.asBlock) {
       s.captureScheduled(ctx.date, ctx.start, ctx.end - ctx.start, p.title || "Focus block", p.cat || "work", p.project || "");
       s.closeModal();
@@ -261,11 +281,36 @@ export const useApp = create<AppState>((set, get) => ({
     }),
 
   // Pull live Google Tasks (replacing seed). On failure (not signed in) keep seed.
+  // Preserves any already-loaded Gmail tasks (a different source).
   loadTasks: () => {
     if (!isTauri) return;
     api
       .listTasks()
-      .then((dtos) => set({ tasks: dtos.map(dtoToTask) }))
+      .then((dtos) => set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")] })))
+      .catch(() => {});
+  },
+
+  // Pull unreplied Primary email as lightweight tasks (preserving Google Tasks).
+  loadEmails: () => {
+    const s = get();
+    if (!isTauri || !s.account) return;
+    api
+      .listEmails()
+      .then((dtos: EmailDto[]) => {
+        const emails: Task[] = dtos.map((d) => ({
+          id: d.id,
+          title: d.subject,
+          project: "",
+          cat: "email",
+          est: 15,
+          status: "needsAction",
+          due: null,
+          completed: null,
+          source: "gmail",
+          meta: d.sender,
+        }));
+        set((st) => ({ tasks: [...st.tasks.filter((t) => t.source !== "gmail"), ...emails] }));
+      })
       .catch(() => {});
   },
 
@@ -336,6 +381,12 @@ function fmtCompleted(iso: string): string {
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return "";
   return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function dayLabelFor(date: string, today: string): string {
+  if (date === today) return "Today";
+  if (date === addDays(today, 1)) return "Tomorrow";
+  return weekdayShort(date);
 }
 
 function eventDtoToCalEvent(d: EventDto): CalEvent {

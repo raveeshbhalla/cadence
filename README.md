@@ -4,9 +4,12 @@ A native, cross-platform **calendar + tasks** desktop app — calendar (à la Cr
 manager (à la Todoist) collapsed into one surface so the morning planning ritual happens in a
 single place. Built with **React + Tauri**, targeting macOS first.
 
-This is currently a **high-fidelity mock** that replicates the full UX from the
+The UX is a faithful build of the
 [Cadence Claude Design project](https://claude.ai/design/p/94733f8c-294a-4228-aef5-c1686ba37411).
-All data is in-memory seed data; there is no live Google sync yet (see _Out of scope_ below).
+**Live integrations** (when signed in): real Google **Calendar** (meetings),
+Google **Tasks** (read + write-back), **Gmail** Primary (unreplied → email tasks),
+and **OpenAI**-backed capture parsing. Without sign-in it runs on in-memory seed
+data. See `docs/SETUP.md` for credentials + OAuth client setup.
 
 ## The daily loop
 

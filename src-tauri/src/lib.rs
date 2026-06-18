@@ -1,11 +1,15 @@
 mod auth;
 mod calendar;
 mod config;
+mod gmail;
 mod google;
+mod openai;
 mod tasks;
 
 use auth::Account;
 use calendar::EventDto;
+use gmail::EmailDto;
+use openai::AiParse;
 use tasks::TaskDto;
 
 // ── Auth ──────────────────────────────────────────────────────────
@@ -54,6 +58,20 @@ async fn events_list(time_min: String, time_max: String) -> Result<Vec<EventDto>
         .map_err(|e| e.to_string())?
 }
 
+// ── Gmail ─────────────────────────────────────────────────────────
+#[tauri::command]
+async fn gmail_unreplied() -> Result<Vec<EmailDto>, String> {
+    tauri::async_runtime::spawn_blocking(gmail::unreplied).await.map_err(|e| e.to_string())?
+}
+
+// ── OpenAI capture parsing ────────────────────────────────────────
+#[tauri::command]
+async fn ai_parse(text: String, today: String) -> Result<AiParse, String> {
+    tauri::async_runtime::spawn_blocking(move || openai::parse(&text, &today))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     config::init();
@@ -67,6 +85,8 @@ pub fn run() {
             task_set_status,
             task_create,
             events_list,
+            gmail_unreplied,
+            ai_parse,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
