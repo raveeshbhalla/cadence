@@ -177,45 +177,94 @@ async fn ai_parse(text: String, today: String, locale: String) -> Result<AiParse
         .map_err(|e| e.to_string())?
 }
 
-fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+/// One row in the menu-bar dropdown (today's schedule, pushed by the frontend).
+#[derive(serde::Deserialize)]
+pub struct AgendaItem {
+    /// Typed id, e.g. "event:abc" or "task:n123" — routed back to the webview on click.
+    id: String,
+    label: String,
+}
+
+/// Build the tray dropdown: an optional header, today's items, then app actions.
+fn build_tray_menu<R: tauri::Runtime>(
+    app: &impl tauri::Manager<R>,
+    header: &str,
+    items: &[AgendaItem],
+) -> Result<tauri::menu::Menu<R>, tauri::Error> {
     use tauri::menu::{MenuBuilder, MenuItemBuilder};
-    use tauri::tray::TrayIconBuilder;
-    use tauri::{Emitter, Manager};
+
+    let mut b = MenuBuilder::new(app);
+
+    // Header (next item / status) — non-clickable.
+    let header_item;
+    if !header.is_empty() {
+        header_item = MenuItemBuilder::with_id("header", header).enabled(false).build(app)?;
+        b = b.item(&header_item).separator();
+    }
+
+    // Today's schedule, in order. Keep the handles alive until build().
+    let mut rows = Vec::with_capacity(items.len());
+    for it in items {
+        rows.push(MenuItemBuilder::with_id(format!("agenda:{}", it.id), &it.label).build(app)?);
+    }
+    if rows.is_empty() && !header.is_empty() {
+        let none = MenuItemBuilder::with_id("none", "Nothing scheduled today").enabled(false).build(app)?;
+        b = b.item(&none);
+    }
+    for r in &rows {
+        b = b.item(r);
+    }
 
     let join = MenuItemBuilder::with_id("join", "Join next meeting").build(app)?;
     let open = MenuItemBuilder::with_id("open", "Open Cadence").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit Cadence").build(app)?;
-    let menu = MenuBuilder::new(app).items(&[&join, &open, &quit]).build()?;
+    b.separator().item(&join).item(&open).item(&quit).build()
+}
+
+/// Replace the tray menu with today's agenda (pushed from the webview).
+#[tauri::command]
+fn set_tray_agenda(app: tauri::AppHandle, header: String, items: Vec<AgendaItem>) -> Result<(), String> {
+    if let Some(tray) = app.tray_by_id("main") {
+        let menu = build_tray_menu(&app, &header, &items).map_err(|e| e.to_string())?;
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::tray::TrayIconBuilder;
+    use tauri::{Emitter, Manager};
+
+    let menu = build_tray_menu(app, "", &[])?;
 
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            "join" => {
-                let _ = app.emit("join-next", ());
-            }
-            "open" => {
+        // Left-click opens the dropdown (Granola-style) rather than hiding the app.
+        .show_menu_on_left_click(true)
+        .on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+            // A clicked agenda row → open the app and focus that item in the webview.
+            if let Some(item) = id.strip_prefix("agenda:") {
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.show();
                     let _ = w.set_focus();
                 }
+                let _ = app.emit("tray-open-item", item.to_string());
+                return;
             }
-            "quit" => app.exit(0),
-            _ => {}
-        })
-        .on_tray_icon_event(|tray, event| {
-            // Left-click the menubar icon → toggle the window.
-            if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, button_state: tauri::tray::MouseButtonState::Up, .. } = event {
-                let app = tray.app_handle();
-                if let Some(w) = app.get_webview_window("main") {
-                    if w.is_visible().unwrap_or(false) {
-                        let _ = w.hide();
-                    } else {
+            match id {
+                "join" => {
+                    let _ = app.emit("join-next", ());
+                }
+                "open" => {
+                    if let Some(w) = app.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();
                     }
                 }
+                "quit" => app.exit(0),
+                _ => {}
             }
         })
         .build(app)?;
@@ -246,6 +295,7 @@ pub fn run() {
             open_url,
             export_data,
             set_tray_title,
+            set_tray_agenda,
             tasks_list,
             task_set_status,
             task_create,

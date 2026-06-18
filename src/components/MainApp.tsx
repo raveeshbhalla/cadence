@@ -61,35 +61,46 @@ export function MainApp() {
     }
   }, [events, tasks, now, today]);
 
-  // The tray "Join next meeting" item signals the webview.
+  // Tray menu items signal the webview: join the next meeting, or open an item.
   useEffect(() => {
     if (!isTauri) return;
-    let unlisten: (() => void) | undefined;
+    const unlisteners: (() => void)[] = [];
     import("@tauri-apps/api/event").then(({ listen }) => {
-      listen("join-next", () => useApp.getState().joinNextMeeting()).then((f) => (unlisten = f));
+      listen("join-next", () => useApp.getState().joinNextMeeting()).then((f) => unlisteners.push(f));
+      // A clicked agenda row: "event:<id>" → details, "task:<id>" → editor.
+      listen<string>("tray-open-item", (e) => {
+        const raw = e.payload;
+        const sep = raw.indexOf(":");
+        const kind = raw.slice(0, sep);
+        const id = raw.slice(sep + 1);
+        const s = useApp.getState();
+        if (kind === "event") s.openEventDetails(id);
+        else if (kind === "task") s.openEditor(id);
+      }).then((f) => unlisteners.push(f));
     });
-    return () => unlisten?.();
+    return () => unlisteners.forEach((f) => f());
   }, []);
 
-  // Push the next upcoming item (across all days) to the macOS menu bar.
+  // Push the next upcoming item (across all days) to the menu-bar title, and
+  // today's full schedule to the menu-bar dropdown (Granola-style).
   useEffect(() => {
     // Absolute minutes relative to "now" so we can sort across days.
-    const mk = (date: string, start: number, end: number, title: string) => {
+    const mk = (kind: "event" | "task", id: string, date: string, start: number, end: number, title: string) => {
       const off = diffDays(date, today) * 1440;
-      return { abs: off + start, absEnd: off + end, start, date, title };
+      return { kind, id, abs: off + start, absEnd: off + end, start, date, title };
     };
-    const items = [
-      ...events.map((e) => mk(e.date, e.start, e.end, e.title)),
-      ...tasks.filter((t) => t.block && t.status !== "completed").map((t) => mk(t.block!.date, t.block!.start, t.block!.end, t.title)),
-    ]
-      .filter((it) => it.absEnd > now)
-      .sort((a, b) => a.abs - b.abs);
+    const all = [
+      ...events.map((e) => mk("event", e.id, e.date, e.start, e.end, e.title)),
+      ...tasks.filter((t) => t.block && t.status !== "completed").map((t) => mk("task", t.id, t.block!.date, t.block!.start, t.block!.end, t.title)),
+    ].sort((a, b) => a.abs - b.abs);
 
-    const n = items[0];
-    let label = "";
+    const clip = (raw: string, n = 44) => (presentMode ? "Busy" : raw.length > n ? raw.slice(0, n - 1) + "…" : raw);
+
+    // Menu-bar title = next upcoming item across all days.
+    const n = all.find((it) => it.absEnd > now);
+    let title = "";
+    let header = "";
     if (n) {
-      const raw = presentMode ? "Busy" : n.title;
-      const title = raw.length > 40 ? raw.slice(0, 39) + "…" : raw;
       const mins = n.abs - now;
       const off = diffDays(n.date, today);
       let rel: string;
@@ -98,9 +109,22 @@ export function MainApp() {
       else if (off === 0) rel = `at ${fmtTime(n.start)}`;
       else if (off === 1) rel = `tomorrow ${fmtTime(n.start)}`;
       else rel = `${weekdayShort(n.date)} ${fmtTime(n.start)}`;
-      label = `${title} · ${rel}`;
+      title = `${clip(n.title, 40)} · ${rel}`;
+      header = n.abs <= now ? `Now · ${clip(n.title)}` : mins < 60 ? `Starts in ${mins}m · ${clip(n.title)}` : `Next ${rel} · ${clip(n.title)}`;
+    } else {
+      header = "Nothing upcoming";
     }
-    api.setTrayTitle(label);
+    api.setTrayTitle(title);
+
+    // Dropdown rows = today's schedule in order. Past items are dimmed with ·.
+    const todays = all.filter((it) => diffDays(it.date, today) === 0);
+    const rows = todays.map((it) => {
+      const done = it.absEnd <= now;
+      const onNow = it.abs <= now && it.absEnd > now;
+      const mark = onNow ? "▶ " : done ? "· " : "  ";
+      return { id: `${it.kind}:${it.id}`, label: `${mark}${fmtTime(it.start)}  ${clip(it.title)}` };
+    });
+    api.setTrayAgenda(header, rows);
   }, [events, tasks, now, today, presentMode]);
 
   return (

@@ -90,6 +90,12 @@ export const api = {
     return invoke<void>("set_tray_title", { text });
   },
 
+  /** Replace the menu-bar dropdown with today's schedule (header + ordered rows). */
+  async setTrayAgenda(header: string, items: { id: string; label: string }[]): Promise<void> {
+    if (!isTauri) return;
+    return invoke<void>("set_tray_agenda", { header, items });
+  },
+
   /** Write a data export to Downloads. Returns the file path. */
   async exportData(json: string, csv: string): Promise<string> {
     return invoke<string>("export_data", { json, csv });
