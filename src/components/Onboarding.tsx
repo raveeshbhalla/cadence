@@ -4,7 +4,7 @@ import { ArrowRight, BigCheck, CalendarIcon, CheckList, GoogleG, Mail, Sparkle }
 import { Hoverable } from "./Hoverable";
 import { api, isTauri } from "../lib/api";
 
-type Step = "welcome" | "consent" | "connecting" | "done";
+type Step = "credentials" | "welcome" | "consent" | "connecting" | "done";
 
 const accent = DEFAULT_ACCENT;
 
@@ -13,7 +13,7 @@ function Dots({ idx }: { idx: number }) {
     i === idx ? accent : i < idx ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.14)";
   return (
     <div style={{ display: "flex", gap: 7, justifyContent: "center", marginTop: 24 }}>
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2, 3].map((i) => (
         <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: dot(i), transition: "background .2s" }} />
       ))}
     </div>
@@ -29,13 +29,39 @@ const cardDark: React.CSSProperties = {
   boxShadow: "0 30px 90px rgba(0,0,0,0.55)",
 };
 
+function googleCredentialsFromJson(raw: string): { clientId: string; clientSecret: string } {
+  const parsed = JSON.parse(raw);
+  const creds = parsed.installed || parsed.web || parsed;
+  return {
+    clientId: typeof creds.client_id === "string" ? creds.client_id : "",
+    clientSecret: typeof creds.client_secret === "string" ? creds.client_secret : "",
+  };
+}
+
 export function Onboarding({ onEnter }: { onEnter: (email: string) => void }) {
   const [step, setStep] = useState<Step>("welcome");
   const [email, setEmail] = useState("alex@gmail.com");
   const [error, setError] = useState<string | null>(null);
+  const [credentialsChecked, setCredentialsChecked] = useState(false);
+  const [envPath, setEnvPath] = useState("~/.config/cadence-env/.env.local");
+  const [googleJson, setGoogleJson] = useState("");
+  const [googleClientId, setGoogleClientId] = useState("");
+  const [googleClientSecret, setGoogleClientSecret] = useState("");
+  const [openaiApiKey, setOpenaiApiKey] = useState("");
+  const [savingCredentials, setSavingCredentials] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => () => clearTimeout(timer.current), []);
+
+  useEffect(() => {
+    api
+      .credentialsStatus()
+      .then((status) => {
+        setEnvPath(status.envPath);
+        if (!status.googleConfigured || !status.openaiConfigured) setStep("credentials");
+      })
+      .finally(() => setCredentialsChecked(true));
+  }, []);
 
   // Run the real OAuth flow (Tauri). Consent happens in the system browser.
   const startRealSignIn = () => {
@@ -61,7 +87,45 @@ export function Onboarding({ onEnter }: { onEnter: (email: string) => void }) {
     timer.current = setTimeout(() => setStep("done"), 1800);
   };
 
-  const idx = step === "welcome" || step === "consent" ? 0 : step === "connecting" ? 1 : 2;
+  const saveCredentials = async () => {
+    setError(null);
+    setSavingCredentials(true);
+    try {
+      let clientId = googleClientId.trim();
+      let clientSecret = googleClientSecret.trim();
+      if (googleJson.trim()) {
+        const parsed = googleCredentialsFromJson(googleJson);
+        clientId = clientId || parsed.clientId;
+        clientSecret = clientSecret || parsed.clientSecret;
+      }
+      if (!clientId || !clientSecret) throw new Error("Add a Google OAuth client ID and secret, or paste the downloaded JSON.");
+      if (!openaiApiKey.trim()) throw new Error("Add an OPENAI_API_KEY.");
+      const status = await api.saveCredentials(clientId, clientSecret, openaiApiKey);
+      setEnvPath(status.envPath);
+      setGoogleJson("");
+      setGoogleClientId("");
+      setGoogleClientSecret("");
+      setOpenaiApiKey("");
+      setStep("welcome");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : typeof e === "string" ? e : "Couldn't save credentials.");
+    } finally {
+      setSavingCredentials(false);
+    }
+  };
+
+  const onGoogleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setGoogleJson(await file.text());
+  };
+
+  const idx = step === "credentials" ? 0 : step === "welcome" || step === "consent" ? 1 : step === "connecting" ? 2 : 3;
+  const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", background: "#0F1015", border: "1px solid rgba(255,255,255,0.11)", borderRadius: 9, color: "#EDEEF1", fontSize: 13, padding: "10px 11px", outline: "none" };
+  const smallLabel: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 650, letterSpacing: "0.03em", textTransform: "uppercase", color: "#7F8490", marginBottom: 7 };
+
+  if (!credentialsChecked) {
+    return <div style={{ minHeight: "100vh", background: "#0B0B10" }} />;
+  }
 
   return (
     <div
@@ -84,6 +148,68 @@ export function Onboarding({ onEnter }: { onEnter: (email: string) => void }) {
         <div style={{ position: "absolute", top: "24%", right: "12%", width: 132, height: 62, borderRadius: 9, background: "rgba(156,140,255,0.09)", borderLeft: "3px solid rgba(156,140,255,0.45)", animation: "floaty 9s ease-in-out infinite", animationDelay: "-4s" }} />
         <div style={{ position: "absolute", top: "68%", right: "16%", width: 116, height: 48, borderRadius: 9, background: "rgba(63,182,164,0.09)", borderLeft: "3px solid rgba(63,182,164,0.45)", animation: "floaty 7.8s ease-in-out infinite", animationDelay: "-1s" }} />
       </div>
+
+      {step === "credentials" && (
+        <div style={{ ...cardDark, width: 560, padding: "34px 34px 28px", position: "relative", animation: "stepIn .4s ease" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Sparkle size={24} fill={accent} />
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 750, color: "#EDEEF1" }}>Connect app credentials</div>
+              <div style={{ fontSize: 12.5, color: "#777C86", marginTop: 2 }}>Saved locally to {envPath}</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 24, display: "grid", gap: 16 }}>
+            <div>
+              <label style={smallLabel}>Google OAuth JSON</label>
+              <textarea
+                value={googleJson}
+                onChange={(e) => setGoogleJson(e.target.value)}
+                placeholder={'Paste the downloaded client JSON here, or use the raw fields below.'}
+                spellCheck={false}
+                style={{ ...inputStyle, minHeight: 92, resize: "vertical", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 1.45 }}
+              />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8 }}>
+                <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", height: 30, padding: "0 11px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", color: "#D7D8DC", fontSize: 12.5, cursor: "pointer", background: "#191B22" }}>
+                  Upload JSON
+                  <input type="file" accept="application/json,.json" onChange={(e) => onGoogleFile(e.target.files?.[0])} style={{ display: "none" }} />
+                </label>
+                <span style={{ fontSize: 11.5, color: "#6C7079", textAlign: "right" }}>Desktop app credentials are recommended.</span>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+              <div>
+                <label style={smallLabel}>Google Client ID</label>
+                <input value={googleClientId} onChange={(e) => setGoogleClientId(e.target.value)} autoComplete="off" spellCheck={false} style={inputStyle} />
+              </div>
+              <div>
+                <label style={smallLabel}>Google Client Secret</label>
+                <input value={googleClientSecret} onChange={(e) => setGoogleClientSecret(e.target.value)} autoComplete="off" spellCheck={false} style={inputStyle} />
+              </div>
+            </div>
+
+            <div>
+              <label style={smallLabel}>OPENAI_API_KEY</label>
+              <input value={openaiApiKey} onChange={(e) => setOpenaiApiKey(e.target.value)} type="password" autoComplete="off" spellCheck={false} style={inputStyle} />
+            </div>
+          </div>
+
+          {error && <p style={{ fontSize: 12.5, lineHeight: 1.45, color: "#E5736B", margin: "14px 0 0" }}>{error}</p>}
+
+          <Hoverable
+            as="button"
+            onClick={() => {
+              if (!savingCredentials) saveCredentials();
+            }}
+            style={{ marginTop: 22, width: "100%", height: 44, display: "flex", alignItems: "center", justifyContent: "center", background: accent, color: ACCENT_FG, border: "none", borderRadius: 11, fontSize: 14, fontWeight: 700, cursor: savingCredentials ? "default" : "pointer", opacity: savingCredentials ? 0.72 : 1 }}
+            hover={{ filter: savingCredentials ? "none" : "brightness(0.94)" }}
+          >
+            {savingCredentials ? "Saving…" : "Save and continue"}
+          </Hoverable>
+          <Dots idx={idx} />
+        </div>
+      )}
 
       {step === "welcome" && (
         <div style={{ ...cardDark, padding: "44px 40px 32px", position: "relative", animation: "stepIn .4s ease" }}>
