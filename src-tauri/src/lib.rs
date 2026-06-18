@@ -94,6 +94,13 @@ async fn task_set_due(list_id: String, id: String, due: Option<String>) -> Resul
 }
 
 #[tauri::command]
+async fn task_set_notes(list_id: String, id: String, notes: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || tasks::set_notes(&list_id, &id, &notes))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn task_delete(list_id: String, id: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || tasks::delete(&list_id, &id)).await.map_err(|e| e.to_string())?
 }
@@ -244,6 +251,7 @@ pub fn run() {
             task_create,
             task_set_title,
             task_set_due,
+            task_set_notes,
             task_delete,
             events_list,
             calendars_list,

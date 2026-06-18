@@ -152,6 +152,23 @@ pub fn set_due(list_id: &str, id: &str, due: Option<String>) -> Result<(), Strin
     }
 }
 
+/// Set a task's notes (Google Tasks discards the time component of `due`, so the
+/// scheduled time is written here — the one task field Google preserves and shows).
+pub fn set_notes(list_id: &str, id: &str, notes: &str) -> Result<(), String> {
+    let token = google::token()?;
+    let resp = google::client()
+        .patch(format!("{BASE}/lists/{list_id}/tasks/{id}"))
+        .bearer_auth(&token)
+        .json(&json!({ "notes": notes }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
+}
+
 /// Delete a task.
 pub fn delete(list_id: &str, id: &str) -> Result<(), String> {
     let token = google::token()?;

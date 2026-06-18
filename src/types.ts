@@ -22,6 +22,8 @@ export interface Task {
   /** Human label set when completed (e.g. "today, 8:42 AM"). */
   completed: string | null;
   source: TaskSource;
+  /** Google Tasks notes (carries the scheduled-time line + any email marker). */
+  notes?: string;
   meta?: string; // email sender meta
   /** Linked Gmail thread (email-derived task or surfaced email). */
   emailThreadId?: string;

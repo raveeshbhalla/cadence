@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   AllDayEvent,
+  Block,
   CalendarMeta,
   CalEvent,
   CaptureContext,
@@ -166,6 +167,8 @@ export interface AppState {
   syncBlock: (taskId: string) => void;
   /** Push a task's due date to Google Tasks. */
   syncTaskDue: (taskId: string) => void;
+  /** Write the scheduled time into the task's Google Tasks notes (due can't hold a time). */
+  syncTaskTime: (taskId: string) => void;
   clearCompleted: () => void;
   rollOverdue: () => void;
 
@@ -470,8 +473,9 @@ export const useApp = create<AppState>()(
         api
           .createTask("@default", t.title, date, notes)
           .then((dto) => {
-            useApp.setState((st) => ({ tasks: st.tasks.map((x) => (x.id === localId ? { ...x, id: dto.id, listId: dto.listId } : x)) }));
+            useApp.setState((st) => ({ tasks: st.tasks.map((x) => (x.id === localId ? { ...x, id: dto.id, listId: dto.listId, notes: dto.notes ?? undefined } : x)) }));
             useApp.getState().syncBlock(dto.id);
+            useApp.getState().syncTaskTime(dto.id);
           })
           .catch(() => {});
       }
@@ -487,6 +491,7 @@ export const useApp = create<AppState>()(
     s.commit(verb + t.title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
     get().syncBlock(taskId);
     get().syncTaskDue(taskId);
+    get().syncTaskTime(taskId);
   },
 
   // Push a task's due date to Google Tasks.
@@ -496,6 +501,18 @@ export const useApp = create<AppState>()(
     const t = s.tasks.find((x) => x.id === taskId);
     if (!t || t.source !== "gtasks" || !t.listId || !t.due) return;
     api.setTaskDue(t.listId, taskId, t.due).catch(() => {});
+  },
+
+  // Google Tasks only stores a date on `due` (the time is discarded), so write the
+  // scheduled time into the task's notes — the field Google preserves and shows.
+  syncTaskTime: (taskId) => {
+    const s = get();
+    if (!isTauri || !s.account) return;
+    const t = s.tasks.find((x) => x.id === taskId);
+    if (!t || t.source !== "gtasks" || !t.listId) return;
+    const notes = withTimeNote(t.notes, t.block ?? null);
+    set((st) => ({ tasks: st.tasks.map((x) => (x.id === taskId ? { ...x, notes: notes || undefined } : x)) }));
+    api.setTaskNotes(t.listId, taskId, notes).catch(() => {});
   },
 
   // Create or update the Google Calendar event backing a task's time block.
@@ -691,9 +708,13 @@ export const useApp = create<AppState>()(
     const s = get();
     const t = s.tasks.find((x) => x.id === id);
     if (!t || !t.block) return;
-    set({ tasks: s.tasks.map((x) => (x.id === id ? { ...x, block: undefined, scheduled: false, eventId: undefined } : x)) });
+    const notes = withTimeNote(t.notes, null);
+    set({ tasks: s.tasks.map((x) => (x.id === id ? { ...x, block: undefined, scheduled: false, eventId: undefined, notes: notes || undefined } : x)) });
     s.setToast("Unscheduled “" + t.title + "”");
-    if (isTauri && s.account && t.eventId) api.deleteEvent(t.eventId).catch(() => {});
+    if (isTauri && s.account) {
+      if (t.eventId) api.deleteEvent(t.eventId).catch(() => {});
+      if (t.source === "gtasks" && t.listId) api.setTaskNotes(t.listId, id, notes).catch(() => {});
+    }
   },
 
   // The single completion path — flips a task's status wherever it's shown,
@@ -909,6 +930,22 @@ function listsFromDtos(dtos: TaskDto[]): ListMeta[] {
   return [...seen].map(([id, title]) => ({ id, title }));
 }
 
+// Managed "scheduled time" line we add to a Google Task's notes. We own any line
+// starting with this sentinel; everything else (user notes, email marker) is kept.
+const TIME_NOTE = "⏰ ";
+
+/** Rebuild a task's notes for its current block, replacing our managed time line. */
+function withTimeNote(notes: string | undefined, block: Block | null): string {
+  const kept = (notes || "")
+    .split("\n")
+    .filter((ln) => !ln.startsWith(TIME_NOTE))
+    .join("\n")
+    .trim();
+  if (!block) return kept;
+  const line = `${TIME_NOTE}${weekdayShort(block.date)} ${fmtTime(block.start)}–${fmtTime(block.end)}`;
+  return kept ? `${line}\n${kept}` : line;
+}
+
 function dtoToTask(d: TaskDto): Task {
   return {
     id: d.id,
@@ -921,6 +958,7 @@ function dtoToTask(d: TaskDto): Task {
     completed: d.completed ? fmtCompleted(d.completed) : null,
     source: "gtasks",
     listId: d.listId,
+    notes: d.notes ?? undefined,
     fromEmail: d.fromEmail || undefined,
     emailThreadId: d.emailThreadId ?? undefined,
   };
@@ -947,6 +985,11 @@ function pushNewTask(localId: string, title: string, due: string | null) {
     .createTask("@default", title, due)
     .then((dto) => {
       useApp.setState((st) => ({ tasks: st.tasks.map((t) => (t.id === localId ? { ...t, id: dto.id, listId: dto.listId } : t)) }));
+      // A captured focus block carries a time — push it to Calendar + Tasks notes.
+      if (useApp.getState().tasks.find((t) => t.id === dto.id)?.block) {
+        useApp.getState().syncBlock(dto.id);
+        useApp.getState().syncTaskTime(dto.id);
+      }
     })
     .catch(() => {});
 }
