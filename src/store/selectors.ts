@@ -1,6 +1,7 @@
+import { END_HOUR } from "../theme";
 import type { CategoryKey } from "../theme";
 import type { Task } from "../types";
-import { type BucketKey, bucketKey, chipLabelFor, isPastEvent, overdueLabel } from "../lib/format";
+import { type BucketKey, bucketKey, chipLabelFor, fmtDur, isPastEvent, overdueLabel } from "../lib/format";
 import { diffDays } from "../lib/dates";
 import type { AppState } from "./app";
 
@@ -101,3 +102,43 @@ export function buildRail(s: Pick<AppState, "tasks" | "showEmail" | "now" | "tod
 }
 
 export { chipLabelFor };
+
+export interface DayLoad {
+  freeLabel: string;
+  free: number;
+  workload: number;
+  overflow: boolean;
+  overflowLabel: string;
+  taskCount: number;
+}
+
+/** Today's commitment: unscheduled work to do vs. free time left in the day. */
+export function dayLoad(s: Pick<AppState, "tasks" | "events" | "now" | "today" | "showEmail" | "hiddenLists">): DayLoad {
+  const hiddenLists = s.hiddenLists || [];
+  const visible = s.tasks.filter((t) => !(t.listId && hiddenLists.includes(t.listId)));
+
+  // Work still to place: overdue + today's tasks (and email, if shown) not done, not scheduled.
+  const toDo = visible.filter((t) => {
+    if (t.status === "completed" || t.scheduled) return false;
+    if (t.source === "gmail") return s.showEmail;
+    return t.due != null && t.due <= s.today;
+  });
+  const workload = toDo.reduce((a, t) => a + t.est, 0);
+  const taskCount = toDo.length;
+
+  // Time already booked between now and end of day.
+  let busy = 0;
+  for (const e of s.events) if (e.date === s.today && e.end > s.now) busy += e.end - Math.max(e.start, s.now);
+  for (const t of s.tasks) if (t.block && t.block.date === s.today && t.block.end > s.now) busy += t.block.end - Math.max(t.block.start, s.now);
+
+  const free = Math.max(0, END_HOUR * 60 - s.now - busy);
+  const overflow = workload > free;
+  return {
+    free,
+    freeLabel: fmtDur(free),
+    workload,
+    taskCount,
+    overflow,
+    overflowLabel: overflow ? `Over by ${fmtDur(workload - free)}` : "",
+  };
+}

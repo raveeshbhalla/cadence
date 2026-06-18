@@ -81,6 +81,8 @@ export interface GridItem {
   done: boolean;
   /** Calendar colour for meetings (task blocks use their category colour). */
   color?: string;
+  /** This meeting overlaps another meeting (double-booked). */
+  conflict?: boolean;
 }
 
 // ── Transient interaction state ──────────────────────────────────

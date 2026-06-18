@@ -4,6 +4,7 @@ import type { DropTarget, GridItem, SelDragState } from "../types";
 import { fmtTime } from "../lib/format";
 import { dayOfMonth, monthLabel, weekDates, weekdayShort } from "../lib/dates";
 import { pack } from "../lib/pack";
+import { dayLoad } from "../store/selectors";
 import { useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
 import { ChevronLeft, ChevronRight } from "./Icon";
@@ -83,7 +84,10 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
           />
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.title}</div>
+          <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {item.conflict && <span title="Overlaps another meeting" style={{ color: C.overdue, marginRight: 3 }}>⚠</span>}
+            {item.title}
+          </div>
           <div style={{ opacity: 0.72, fontSize: 10, whiteSpace: "nowrap" }}>{fmtTime(item.start)}</div>
         </div>
       </div>
@@ -220,6 +224,7 @@ export function Calendar() {
   const density = useApp((s) => s.density);
   const now = useApp((s) => s.now);
   const today = useApp((s) => s.today);
+  const showEmail = useApp((s) => s.showEmail);
   const viewMonday = useApp((s) => s.viewMonday);
   const dropTarget = useApp((s) => s.dropTarget);
   const selDrag = useApp((s) => s.selDrag);
@@ -259,6 +264,10 @@ export function Calendar() {
 
     return week.map((date) => {
       const dayItems = items.filter((it) => it.date === date);
+      // Mark meetings that overlap another meeting (double-booked).
+      const meetings = dayItems.filter((it) => !it.checkable);
+      for (const a of meetings)
+        if (meetings.some((b) => b !== a && b.start < a.end && b.end > a.start)) a.conflict = true;
       const pk = pack(dayItems);
       return dayItems.map((item) => {
         const pos = pk[item.id] || { col: 0, cols: 1 };
@@ -278,6 +287,8 @@ export function Calendar() {
   );
 
   const [monthName, yearStr] = monthLabel(week[2]).split(" ");
+  const load = useMemo(() => dayLoad({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
+  const conflicts = useMemo(() => perDay.reduce((n, day) => n + day.filter((pi) => pi.item.conflict).length, 0), [perDay]);
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.calendarBg }}>
@@ -299,10 +310,23 @@ export function Calendar() {
             </Hoverable>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 4, background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 2 }}>
-          {switchPill("Day", false)}
-          {switchPill("Week", true)}
-          {switchPill("Month", false)}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {conflicts > 0 && (
+            <span title="Overlapping meetings this week" style={{ fontSize: 11.5, fontWeight: 600, color: C.overdue, background: "rgba(229,115,107,0.14)", borderRadius: 20, padding: "3px 9px" }}>
+              ⚠ {conflicts} overlap{conflicts > 1 ? "s" : ""}
+            </span>
+          )}
+          <span
+            title="Today: work still to schedule vs. free time left"
+            style={{ fontSize: 11.5, fontWeight: 600, borderRadius: 20, padding: "3px 9px", color: load.overflow ? C.overdue : C.textMute, background: load.overflow ? "rgba(229,115,107,0.14)" : "rgba(255,255,255,0.05)" }}
+          >
+            {load.overflow ? load.overflowLabel : `${load.freeLabel} free today`}
+          </span>
+          <div style={{ display: "flex", gap: 4, background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 2 }}>
+            {switchPill("Day", false)}
+            {switchPill("Week", true)}
+            {switchPill("Month", false)}
+          </div>
         </div>
       </div>
 
