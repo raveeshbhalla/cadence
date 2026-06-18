@@ -11,6 +11,10 @@ GOOGLE_CLIENT_SECRET=...
 OPENAI_API_KEY=...
 ```
 
+You can copy `.env.example` as a template. Do not commit real credential values;
+`.env` and `.env.*` are ignored. See `SECURITY.md` for token storage, CI, and
+release-secret guidance.
+
 ## Google OAuth client
 
 Create credentials in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
