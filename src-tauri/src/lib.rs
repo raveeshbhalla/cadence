@@ -50,6 +50,18 @@ async fn task_create(list_id: String, title: String, due: Option<String>) -> Res
         .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn task_set_title(list_id: String, id: String, title: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || tasks::set_title(&list_id, &id, &title))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn task_delete(list_id: String, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || tasks::delete(&list_id, &id)).await.map_err(|e| e.to_string())?
+}
+
 // ── Google Calendar ───────────────────────────────────────────────
 #[tauri::command]
 async fn events_list(time_min: String, time_max: String) -> Result<Vec<EventDto>, String> {
@@ -68,6 +80,13 @@ async fn event_create(title: String, start: String, end: String, task_id: String
 #[tauri::command]
 async fn event_update(event_id: String, start: String, end: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || calendar::update(&event_id, &start, &end))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn event_set_title(event_id: String, title: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || calendar::set_summary(&event_id, &title))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -103,9 +122,12 @@ pub fn run() {
             tasks_list,
             task_set_status,
             task_create,
+            task_set_title,
+            task_delete,
             events_list,
             event_create,
             event_update,
+            event_set_title,
             event_delete,
             gmail_unreplied,
             ai_parse,

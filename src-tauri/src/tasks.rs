@@ -91,6 +91,37 @@ pub fn set_status(list_id: &str, id: &str, completed: bool) -> Result<(), String
     }
 }
 
+/// Rename a task.
+pub fn set_title(list_id: &str, id: &str, title: &str) -> Result<(), String> {
+    let token = google::token()?;
+    let resp = google::client()
+        .patch(format!("{BASE}/lists/{list_id}/tasks/{id}"))
+        .bearer_auth(&token)
+        .json(&json!({ "title": title }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
+}
+
+/// Delete a task.
+pub fn delete(list_id: &str, id: &str) -> Result<(), String> {
+    let token = google::token()?;
+    let resp = google::client()
+        .delete(format!("{BASE}/lists/{list_id}/tasks/{id}"))
+        .bearer_auth(&token)
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() || resp.status().as_u16() == 410 {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
+}
+
 /// Create a task in a list (use "@default" for the default list).
 pub fn create(list_id: &str, title: &str, due: Option<String>) -> Result<TaskDto, String> {
     let token = google::token()?;

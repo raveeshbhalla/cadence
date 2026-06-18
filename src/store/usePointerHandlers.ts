@@ -169,6 +169,9 @@ export function usePointerHandlers() {
             }
             return;
           }
+        } else if (s.tasks.some((t) => t.id === ed.id && t.block)) {
+          // a click (no drag) on a task block → open its editor
+          s.openEditor(ed.id);
         }
         s.setInteraction({ eventDrag: null, dropTarget: null });
         return;
@@ -185,6 +188,9 @@ export function usePointerHandlers() {
             s.placeTask(d.payload.id, week[c.di], start);
             return;
           }
+        } else {
+          // a click (no drag) on a rail row → open its editor
+          s.openEditor(d.payload.id);
         }
         s.setInteraction({ drag: null, dropTarget: null });
         return;
@@ -229,7 +235,10 @@ export function usePointerHandlers() {
         s.undo();
         return;
       }
-      if (k === "escape" && s.modal) s.closeModal();
+      if (k === "escape") {
+        if (s.modal) s.closeModal();
+        else if (s.editorId) s.closeEditor();
+      }
     };
 
     document.addEventListener("pointermove", onMove);

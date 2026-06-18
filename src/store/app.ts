@@ -69,6 +69,8 @@ export interface AppState {
   captureText: string;
   captureContext: CaptureContext | null;
   paletteQuery: string;
+  /** Task id currently open in the detail editor, if any. */
+  editorId: string | null;
 
   // ephemeral
   toast: ToastState | null;
@@ -105,6 +107,11 @@ export interface AppState {
   loadTasks: () => void;
   loadCalendar: () => void;
   loadEmails: () => void;
+  openEditor: (id: string) => void;
+  closeEditor: () => void;
+  renameTask: (id: string, title: string) => void;
+  deleteTask: (id: string) => void;
+  unscheduleTask: (id: string) => void;
   toggleTask: (id: string) => void;
   captureScheduled: (date: string, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
   placeTask: (taskId: string, date: string, start: number) => void;
@@ -155,6 +162,7 @@ export const useApp = create<AppState>()(
   captureText: "",
   captureContext: null,
   paletteQuery: "",
+  editorId: null,
 
   toast: null,
   undoSnap: null,
@@ -399,6 +407,42 @@ export const useApp = create<AppState>()(
         }));
       })
       .catch(() => {});
+  },
+
+  openEditor: (id) => set({ editorId: id }),
+  closeEditor: () => set({ editorId: null }),
+
+  renameTask: (id, title) => {
+    const s = get();
+    const t = s.tasks.find((x) => x.id === id);
+    if (!t || !title.trim()) return;
+    const clean = title.trim();
+    set({ tasks: s.tasks.map((x) => (x.id === id ? { ...x, title: clean } : x)) });
+    if (isTauri && s.account) {
+      if (t.source === "gtasks" && t.listId) api.setTaskTitle(t.listId, id, clean).catch(() => {});
+      if (t.eventId) api.setEventTitle(t.eventId, clean).catch(() => {});
+    }
+  },
+
+  deleteTask: (id) => {
+    const s = get();
+    const t = s.tasks.find((x) => x.id === id);
+    if (!t) return;
+    set({ tasks: s.tasks.filter((x) => x.id !== id), editorId: null });
+    s.setToast("Deleted “" + t.title + "”");
+    if (isTauri && s.account) {
+      if (t.eventId) api.deleteEvent(t.eventId).catch(() => {});
+      if (t.source === "gtasks" && t.listId) api.deleteTask(t.listId, id).catch(() => {});
+    }
+  },
+
+  unscheduleTask: (id) => {
+    const s = get();
+    const t = s.tasks.find((x) => x.id === id);
+    if (!t || !t.block) return;
+    set({ tasks: s.tasks.map((x) => (x.id === id ? { ...x, block: undefined, scheduled: false, eventId: undefined } : x)) });
+    s.setToast("Unscheduled “" + t.title + "”");
+    if (isTauri && s.account && t.eventId) api.deleteEvent(t.eventId).catch(() => {});
   },
 
   // The single completion path — flips a task's status wherever it's shown,

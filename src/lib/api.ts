@@ -82,6 +82,14 @@ export const api = {
     return invoke<TaskDto>("task_create", { listId, title, due });
   },
 
+  async setTaskTitle(listId: string, id: string, title: string): Promise<void> {
+    return invoke<void>("task_set_title", { listId, id, title });
+  },
+
+  async deleteTask(listId: string, id: string): Promise<void> {
+    return invoke<void>("task_delete", { listId, id });
+  },
+
   /** List primary-calendar events in [timeMin, timeMax] (RFC3339). */
   async listEvents(timeMin: string, timeMax: string): Promise<EventDto[]> {
     if (!isTauri) return [];
@@ -95,6 +103,10 @@ export const api = {
 
   async updateEvent(eventId: string, start: string, end: string): Promise<void> {
     return invoke<void>("event_update", { eventId, start, end });
+  },
+
+  async setEventTitle(eventId: string, title: string): Promise<void> {
+    return invoke<void>("event_set_title", { eventId, title });
   },
 
   async deleteEvent(eventId: string): Promise<void> {

@@ -99,6 +99,22 @@ pub fn update(event_id: &str, start: &str, end: &str) -> Result<(), String> {
     }
 }
 
+/// Rename a block event's summary.
+pub fn set_summary(event_id: &str, title: &str) -> Result<(), String> {
+    let token = google::token()?;
+    let resp = google::client()
+        .patch(format!("{BASE}/calendars/primary/events/{event_id}"))
+        .bearer_auth(&token)
+        .json(&json!({ "summary": title }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
+}
+
 /// Delete a block event (e.g. when unscheduling).
 pub fn delete(event_id: &str) -> Result<(), String> {
     let token = google::token()?;
