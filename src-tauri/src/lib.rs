@@ -105,6 +105,13 @@ async fn event_create(title: String, start: String, end: String, task_id: String
 }
 
 #[tauri::command]
+async fn event_create_meeting(title: String, start: String, end: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || calendar::create_meeting(&title, &start, &end))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn event_update(event_id: String, start: String, end: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || calendar::update(&event_id, &start, &end))
         .await
@@ -214,6 +221,7 @@ pub fn run() {
             events_list,
             calendars_list,
             event_create,
+            event_create_meeting,
             event_update,
             event_set_title,
             event_delete,

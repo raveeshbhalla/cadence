@@ -109,6 +109,21 @@ pub fn list(time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
     Ok(out)
 }
 
+/// Create a plain calendar event (a meeting, not a task block). Returns the id.
+pub fn create_meeting(title: &str, start: &str, end: &str) -> Result<String, String> {
+    let token = google::token()?;
+    let body = json!({ "summary": title, "start": { "dateTime": start }, "end": { "dateTime": end } });
+    let v: Value = google::client()
+        .post(format!("{BASE}/calendars/primary/events"))
+        .bearer_auth(&token)
+        .json(&body)
+        .send()
+        .map_err(|e| e.to_string())?
+        .json()
+        .map_err(|e| e.to_string())?;
+    Ok(v["id"].as_str().unwrap_or_default().to_string())
+}
+
 /// Create a time-block event linked to a Cadence task. Returns the event id.
 pub fn create(title: &str, start: &str, end: &str, task_id: &str) -> Result<String, String> {
     let token = google::token()?;

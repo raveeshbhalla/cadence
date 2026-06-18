@@ -10,6 +10,8 @@ export interface ParsedCapture {
   time: number | null; // minutes from midnight
   date: string | null; // resolved YYYY-MM-DD
   dayLabel: string | null;
+  /** True when the text used a markdown checkbox ("[ ]") to mean "make this a task". */
+  checkbox: boolean;
 }
 
 // weekday name → JS getDay() index (0 Sun .. 6 Sat)
@@ -36,6 +38,13 @@ export function parseCapture(text: string, today: string): ParsedCapture {
   let date: string | null = null;
   let dayLabel: string | null = null;
   let m: RegExpMatchArray | null;
+
+  // Markdown checkbox "[ ]" / "[]" / "[x]" → force this into a task.
+  let checkbox = false;
+  if (/\[\s*x?\s*\]/i.test(t)) {
+    checkbox = true;
+    t = t.replace(/\[\s*x?\s*\]/gi, " ");
+  }
 
   if ((m = t.match(/#(\w+)/))) {
     project = m[1];
@@ -113,5 +122,5 @@ export function parseCapture(text: string, today: string): ParsedCapture {
     .trim();
   if (title) title = title.charAt(0).toUpperCase() + title.slice(1);
 
-  return { title, project, cat, est, time, date, dayLabel };
+  return { title, project, cat, est, time, date, dayLabel, checkbox };
 }

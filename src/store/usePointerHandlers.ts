@@ -217,7 +217,7 @@ export function usePointerHandlers() {
             s.setInteraction({ selDrag: null });
             s.addAvailabilitySlot(date, a, b);
           } else {
-            s.setInteraction({ selDrag: null, modal: "capture", captureText: "", captureContext: { asBlock: true, date, start: a, end: b } });
+            s.setInteraction({ selDrag: null, modal: "capture", captureText: "", captureAsTask: false, captureContext: { asBlock: true, date, start: a, end: b } });
           }
         } else {
           s.setInteraction({ selDrag: null });

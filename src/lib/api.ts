@@ -141,6 +141,11 @@ export const api = {
     return invoke<string>("event_create", { title, start, end, taskId });
   },
 
+  /** Create a plain calendar event (a meeting). Returns the event id. */
+  async createMeeting(title: string, start: string, end: string): Promise<string> {
+    return invoke<string>("event_create_meeting", { title, start, end });
+  },
+
   async updateEvent(eventId: string, start: string, end: string): Promise<void> {
     return invoke<void>("event_update", { eventId, start, end });
   },

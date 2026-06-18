@@ -75,6 +75,8 @@ export interface AppState {
   modal: ModalKind;
   captureText: string;
   captureContext: CaptureContext | null;
+  /** For a drag-selected capture: make it a task (true) vs a calendar event (false). */
+  captureAsTask: boolean;
   paletteQuery: string;
   /** Task id currently open in the detail editor, if any. */
   editorId: string | null;
@@ -114,8 +116,10 @@ export interface AppState {
   closeModal: () => void;
   togglePalette: () => void;
   setCaptureText: (t: string) => void;
+  setCaptureAsTask: (v: boolean) => void;
   setPaletteQuery: (q: string) => void;
   confirmCapture: () => void;
+  createMeeting: (date: string, start: number, end: number, title: string) => void;
 
   toggleSidebar: () => void;
   toggleArchived: () => void;
@@ -198,6 +202,7 @@ export const useApp = create<AppState>()(
   modal: null,
   captureText: "",
   captureContext: null,
+  captureAsTask: false,
   paletteQuery: "",
   editorId: null,
   eventDetailsId: null,
@@ -248,18 +253,22 @@ export const useApp = create<AppState>()(
     if (now !== s.now || today !== s.today) set({ now, today });
   },
 
-  openCapture: () => set({ modal: "capture", captureText: "", captureContext: null }),
+  openCapture: () => set({ modal: "capture", captureText: "", captureContext: null, captureAsTask: false }),
   openPalette: () => set({ modal: "palette", paletteQuery: "" }),
   openSettings: () => set({ modal: "settings" }),
   closeModal: () => set({ modal: null, captureContext: null }),
   togglePalette: () => set((s) => ({ modal: s.modal === "palette" ? null : "palette", paletteQuery: "" })),
   setCaptureText: (t) => set({ captureText: t }),
+  setCaptureAsTask: (v) => set({ captureAsTask: v }),
   setPaletteQuery: (q) => set({ paletteQuery: q }),
 
   confirmCapture: async () => {
     const s = get();
     const ctx = s.captureContext;
     let p = parseCapture(s.captureText, s.today);
+    // A drag-selected capture is a calendar event by default; the toggle or a
+    // "[ ]" checkbox makes it a task instead.
+    const wantTask = s.captureAsTask || p.checkbox;
     // Upgrade the regex parse with the model when available (chips stayed instant).
     if (isTauri && s.captureText.trim()) {
       try {
@@ -274,13 +283,19 @@ export const useApp = create<AppState>()(
           time: ai.time ?? p.time,
           date,
           dayLabel: date ? dayLabelFor(date, s.today) : p.dayLabel,
+          checkbox: p.checkbox,
         };
       } catch {
         // model unavailable → keep the regex parse
       }
     }
+    const cleanTitle = (p.title || "").replace(/\[\s*x?\s*\]/gi, " ").replace(/\s+/g, " ").trim();
     if (ctx && ctx.asBlock) {
-      s.captureScheduled(ctx.date, ctx.start, ctx.end - ctx.start, p.title || "Focus block", p.cat || "work", p.project || "");
+      if (wantTask) {
+        s.captureScheduled(ctx.date, ctx.start, ctx.end - ctx.start, cleanTitle || "Focus block", p.cat || "work", p.project || "");
+      } else {
+        s.createMeeting(ctx.date, ctx.start, ctx.end, cleanTitle || "Untitled event");
+      }
       s.closeModal();
       return;
     }
@@ -308,6 +323,25 @@ export const useApp = create<AppState>()(
       pushNewTask(id, p.title, p.date);
     }
     s.closeModal();
+  },
+
+  // Drag-selected capture (default) → a plain calendar event (meeting).
+  createMeeting: (date, start, end, title) => {
+    const s = get();
+    if (isPast(date, start, s.today, s.now)) {
+      s.setToast("Can’t schedule in the past");
+      return;
+    }
+    const id = "ev" + Date.now() + Math.floor(Math.random() * 99);
+    const color = s.calendars.find((c) => c.primary)?.color;
+    const event: CalEvent = { id, date, start, end, title, cat: "work", color };
+    s.commit("Added “" + title + "” · " + weekdayShort(date) + " " + fmtTime(start), { events: s.events.concat([event]) });
+    if (isTauri && s.account) {
+      api
+        .createMeeting(title, isoAt(date, start), isoAt(date, end))
+        .then((eventId) => useApp.setState((st) => ({ events: st.events.map((e) => (e.id === id ? { ...e, id: eventId } : e)) })))
+        .catch(() => {});
+    }
   },
 
   // Capture → a brand-new scheduled task (one shared record on grid + rail).

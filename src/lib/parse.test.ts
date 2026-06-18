@@ -47,6 +47,13 @@ describe("parseCapture", () => {
     expect(p.title).toBe("Buy 2-3 apples");
   });
 
+  it("recognises and strips a [ ] checkbox marker", () => {
+    const p = parseCapture("[ ] Prep deck", TODAY);
+    expect(p.checkbox).toBe(true);
+    expect(p.title).toBe("Prep deck");
+    expect(parseCapture("Standup", TODAY).checkbox).toBe(false);
+  });
+
   it("no date → inbox (null date)", () => {
     const p = parseCapture("Email Bob back", TODAY);
     expect(p.title).toBe("Email Bob back");
