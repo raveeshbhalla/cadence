@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { C } from "../theme";
 import { fmtTime } from "../lib/format";
 import { diffDays, weekdayShort } from "../lib/dates";
-import { api } from "../lib/api";
+import { api, isTauri } from "../lib/api";
 import { useApp } from "../store/app";
 import { usePointerHandlers } from "../store/usePointerHandlers";
 import { Titlebar } from "./Titlebar";
@@ -12,6 +12,8 @@ import { TaskRail } from "./TaskRail";
 import { Capture } from "./Capture";
 import { CommandPalette } from "./CommandPalette";
 import { Settings } from "./Settings";
+import { Shortcuts } from "./Shortcuts";
+import { GoToDate } from "./GoToDate";
 import { TaskEditor } from "./TaskEditor";
 import { EventDetails } from "./EventDetails";
 import { AvailabilityPanel } from "./AvailabilityPanel";
@@ -38,6 +40,16 @@ export function MainApp() {
     const id = setInterval(tickNow, 20000);
     return () => clearInterval(id);
   }, [tickNow]);
+
+  // The tray "Join next meeting" item signals the webview.
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("join-next", () => useApp.getState().joinNextMeeting()).then((f) => (unlisten = f));
+    });
+    return () => unlisten?.();
+  }, []);
 
   // Push the next upcoming item (across all days) to the macOS menu bar.
   useEffect(() => {
@@ -84,6 +96,8 @@ export function MainApp() {
       {modal === "capture" && <Capture />}
       {modal === "palette" && <CommandPalette />}
       {modal === "settings" && <Settings />}
+      {modal === "shortcuts" && <Shortcuts />}
+      {modal === "goto" && <GoToDate />}
       {editorId && <TaskEditor />}
       {eventDetailsId && <EventDetails />}
       {availabilityMode && <AvailabilityPanel />}

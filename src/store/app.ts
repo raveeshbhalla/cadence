@@ -22,7 +22,7 @@ import type { CategoryKey, Density } from "../theme";
 type GridLike = { id: string; start: number; end: number; title: string; cat: CategoryKey };
 import { DEFAULT_ACCENT, pxPerHour } from "../theme";
 import { makeSeed } from "../data/seed";
-import { addDays, dateKey, defaultWeekMonday, isoAt, monthShort, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
+import { addDays, dateKey, defaultWeekMonday, diffDays, isoAt, mondayOf, monthShort, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
 import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
@@ -113,7 +113,11 @@ export interface AppState {
   openCapture: () => void;
   openPalette: () => void;
   openSettings: () => void;
+  openShortcuts: () => void;
+  openGoto: () => void;
   closeModal: () => void;
+  joinNextMeeting: () => void;
+  jumpToDate: (date: string) => void;
   togglePalette: () => void;
   setCaptureText: (t: string) => void;
   setCaptureAsTask: (v: boolean) => void;
@@ -256,7 +260,30 @@ export const useApp = create<AppState>()(
   openCapture: () => set({ modal: "capture", captureText: "", captureContext: null, captureAsTask: false }),
   openPalette: () => set({ modal: "palette", paletteQuery: "" }),
   openSettings: () => set({ modal: "settings" }),
+  openShortcuts: () => set({ modal: "shortcuts" }),
+  openGoto: () => set({ modal: "goto" }),
   closeModal: () => set({ modal: null, captureContext: null }),
+
+  // Open the soonest upcoming meeting that has a conference link.
+  joinNextMeeting: () => {
+    const s = get();
+    const next = s.events
+      .filter((e) => e.hangoutLink)
+      .map((e) => ({ e, abs: diffDays(e.date, s.today) * 1440 + e.start, absEnd: diffDays(e.date, s.today) * 1440 + e.end }))
+      .filter((x) => x.absEnd > s.now)
+      .sort((a, b) => a.abs - b.abs)[0];
+    if (!next) {
+      s.setToast("No upcoming meeting with a join link");
+      return;
+    }
+    api.openUrl(next.e.hangoutLink!);
+    s.setToast("Joining " + next.e.title);
+  },
+
+  jumpToDate: (date) => {
+    set({ viewMonday: mondayOf(parseKey(date)), modal: null });
+    get().loadCalendar();
+  },
   togglePalette: () => set((s) => ({ modal: s.modal === "palette" ? null : "palette", paletteQuery: "" })),
   setCaptureText: (t) => set({ captureText: t }),
   setCaptureAsTask: (v) => set({ captureAsTask: v }),

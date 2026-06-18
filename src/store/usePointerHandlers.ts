@@ -245,12 +245,28 @@ export function usePointerHandlers() {
         s.undo();
         return;
       }
+      if (meta && k === "j") {
+        e.preventDefault();
+        s.joinNextMeeting();
+        return;
+      }
       if (k === "escape") {
         if (s.modal) s.closeModal();
         else if (s.editorId) s.closeEditor();
         else if (s.eventDetailsId) s.closeEventDetails();
         else if (s.availabilityMode) s.exitAvailability();
+        return;
       }
+
+      // Single-key navigation — only when not typing or in another surface.
+      if (meta || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (s.modal || s.availabilityMode || s.editorId || (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))) return;
+      if (k === "t") s.gotoToday();
+      else if (k === "[") s.prevWeek();
+      else if (k === "]") s.nextWeek();
+      else if (k === "g") s.openGoto();
+      else if (k === "?") s.openShortcuts();
     };
 
     document.addEventListener("pointermove", onMove);

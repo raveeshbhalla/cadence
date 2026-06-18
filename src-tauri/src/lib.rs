@@ -152,17 +152,21 @@ async fn ai_parse(text: String, today: String) -> Result<AiParse, String> {
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::{MenuBuilder, MenuItemBuilder};
     use tauri::tray::TrayIconBuilder;
-    use tauri::Manager;
+    use tauri::{Emitter, Manager};
 
+    let join = MenuItemBuilder::with_id("join", "Join next meeting").build(app)?;
     let open = MenuItemBuilder::with_id("open", "Open Cadence").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit Cadence").build(app)?;
-    let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
+    let menu = MenuBuilder::new(app).items(&[&join, &open, &quit]).build()?;
 
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "join" => {
+                let _ = app.emit("join-next", ());
+            }
             "open" => {
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.show();
