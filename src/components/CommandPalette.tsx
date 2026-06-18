@@ -26,6 +26,7 @@ export function CommandPalette() {
       { id: "meet", name: "Meet with…", hint: "Find a time", glyph: "◎", run: () => { s.closeModal(); s.setToast("Meet with… (demo)"); } },
       { id: "email", name: (s.showEmail ? "Hide" : "Show") + " Gmail · Primary", hint: "Email source", glyph: "✉", run: () => { s.toggleEmailSource(); s.closeModal(); } },
       { id: "join", name: "Join next meeting", hint: "⌘J", glyph: "⏵", run: () => { s.closeModal(); s.joinNextMeeting(); } },
+      { id: "buffer", name: "Add buffer after next meeting", hint: "", glyph: "▱", run: () => { s.closeModal(); s.bufferNextMeeting(); } },
       { id: "today", name: "Go to today", hint: "T", glyph: "◆", run: () => { s.closeModal(); s.gotoToday(); } },
       { id: "goto", name: "Go to date…", hint: "G", glyph: "◷", run: () => s.openGoto() },
       { id: "shortcuts", name: "Keyboard shortcuts", hint: "?", glyph: "⌘", run: () => s.openShortcuts() },

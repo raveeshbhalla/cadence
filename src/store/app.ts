@@ -20,7 +20,7 @@ import type { CategoryKey, Density } from "../theme";
 
 /** Minimal shape needed to begin moving a grid item (meeting or task block). */
 type GridLike = { id: string; start: number; end: number; title: string; cat: CategoryKey };
-import { DEFAULT_ACCENT, pxPerHour } from "../theme";
+import { DEFAULT_ACCENT, END_HOUR, pxPerHour } from "../theme";
 import { makeSeed } from "../data/seed";
 import { addDays, dateKey, defaultWeekMonday, diffDays, isoAt, mondayOf, monthShort, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
@@ -118,6 +118,8 @@ export interface AppState {
   closeModal: () => void;
   joinNextMeeting: () => void;
   jumpToDate: (date: string) => void;
+  addBufferAfter: (eventId: string) => void;
+  bufferNextMeeting: () => void;
   togglePalette: () => void;
   setCaptureText: (t: string) => void;
   setCaptureAsTask: (v: boolean) => void;
@@ -283,6 +285,38 @@ export const useApp = create<AppState>()(
   jumpToDate: (date) => {
     set({ viewMonday: mondayOf(parseKey(date)), modal: null });
     get().loadCalendar();
+  },
+
+  // Insert a short transition buffer in the gap right after a meeting.
+  addBufferAfter: (eventId) => {
+    const s = get();
+    const ev = s.events.find((e) => e.id === eventId);
+    if (!ev) return;
+    const starts = [
+      ...s.events.filter((e) => e.date === ev.date && e.start >= ev.end).map((e) => e.start),
+      ...s.tasks.filter((t) => t.block && t.block.date === ev.date && t.block.start >= ev.end).map((t) => t.block!.start),
+    ];
+    const nextStart = starts.length ? Math.min(...starts) : END_HOUR * 60;
+    const gap = nextStart - ev.end;
+    if (gap < 5) {
+      s.setToast("No room for a buffer after this");
+      return;
+    }
+    s.createMeeting(ev.date, ev.end, ev.end + Math.min(15, gap), "Buffer");
+    s.closeEventDetails();
+  },
+
+  bufferNextMeeting: () => {
+    const s = get();
+    const next = s.events
+      .map((e) => ({ e, abs: diffDays(e.date, s.today) * 1440 + e.start, absEnd: diffDays(e.date, s.today) * 1440 + e.end }))
+      .filter((x) => x.absEnd > s.now)
+      .sort((a, b) => a.abs - b.abs)[0];
+    if (!next) {
+      s.setToast("No upcoming meeting");
+      return;
+    }
+    s.addBufferAfter(next.e.id);
   },
   togglePalette: () => set((s) => ({ modal: s.modal === "palette" ? null : "palette", paletteQuery: "" })),
   setCaptureText: (t) => set({ captureText: t }),

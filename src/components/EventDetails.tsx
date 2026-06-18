@@ -9,6 +9,7 @@ import { overlay } from "./overlay";
 export function EventDetails() {
   const ev = useApp((s) => s.events.find((e) => e.id === s.eventDetailsId));
   const close = useApp((s) => s.closeEventDetails);
+  const addBufferAfter = useApp((s) => s.addBufferAfter);
   if (!ev) return null;
 
   const d = parseKey(ev.date);
@@ -40,13 +41,16 @@ export function EventDetails() {
           {!ev.location && !ev.description && row("ℹ", <span style={{ color: C.textMute2 }}>No location or description.</span>)}
         </div>
 
-        {ev.hangoutLink && (
-          <div style={{ padding: "12px 16px", background: C.modalFooterBg, borderTop: `1px solid ${C.border}` }}>
-            <Hoverable as="button" onClick={() => ev.hangoutLink && api.openUrl(ev.hangoutLink)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "#1A8A4F", border: "none", borderRadius: 9, padding: "10px", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }} hover={{ filter: "brightness(1.1)" }}>
+        <div style={{ display: "flex", gap: 8, padding: "12px 16px", background: C.modalFooterBg, borderTop: `1px solid ${C.border}` }}>
+          <Hoverable as="button" onClick={() => addBufferAfter(ev.id)} title="Add a short transition block after this" style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 9, padding: "10px 14px", cursor: "pointer", flex: "none" }} hover={{ background: "#222630", color: "#fff" }}>
+            + Buffer after
+          </Hoverable>
+          {ev.hangoutLink && (
+            <Hoverable as="button" onClick={() => ev.hangoutLink && api.openUrl(ev.hangoutLink)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flex: 1, background: "#1A8A4F", border: "none", borderRadius: 9, padding: "10px", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }} hover={{ filter: "brightness(1.1)" }}>
               Join meeting
             </Hoverable>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
