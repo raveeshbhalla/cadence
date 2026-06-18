@@ -64,9 +64,11 @@ export interface RailData {
   archived: RailRow[];
 }
 
-export function buildRail(s: Pick<AppState, "tasks" | "showEmail" | "now" | "today">): RailData {
+export function buildRail(s: Pick<AppState, "tasks" | "showEmail" | "now" | "today"> & { hiddenLists?: string[] }): RailData {
   const { today } = s;
-  const act = s.tasks.filter((t) => t.status !== "completed");
+  const hiddenLists = s.hiddenLists || [];
+  const visible = s.tasks.filter((t) => !(t.listId && hiddenLists.includes(t.listId)));
+  const act = visible.filter((t) => t.status !== "completed");
   const overdue: RailRow[] = [];
   const buckets: Record<string, RailRow[]> = { today: [], inbox: [], tomorrow: [], thisweek: [], nextweek: [], later: [] };
 
@@ -94,7 +96,7 @@ export function buildRail(s: Pick<AppState, "tasks" | "showEmail" | "now" | "tod
     { label: "Later", rows: buckets.later, color: null },
   ].filter((sec) => sec.rows.length > 0);
 
-  const archived = s.tasks.filter((t) => t.status === "completed").map((t) => rowFromTask(t, "done", false, today));
+  const archived = visible.filter((t) => t.status === "completed").map((t) => rowFromTask(t, "done", false, today));
   return { sections, archived };
 }
 

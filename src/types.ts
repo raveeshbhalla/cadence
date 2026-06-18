@@ -41,6 +41,23 @@ export interface CalEvent {
   end: number;
   title: string;
   cat: CategoryKey;
+  calendarId?: string;
+  color?: string; // calendar background colour
+  location?: string;
+  description?: string;
+  hangoutLink?: string;
+}
+
+export interface CalendarMeta {
+  id: string;
+  summary: string;
+  color: string;
+  primary: boolean;
+}
+
+export interface ListMeta {
+  id: string;
+  title: string;
 }
 
 /**
@@ -58,6 +75,8 @@ export interface GridItem {
   /** Scheduled task → true (has a checkbox). Meeting → false. */
   checkable: boolean;
   done: boolean;
+  /** Calendar colour for meetings (task blocks use their category colour). */
+  color?: string;
 }
 
 // ── Transient interaction state ──────────────────────────────────

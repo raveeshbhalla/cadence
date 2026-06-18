@@ -66,13 +66,14 @@ export function TaskRail() {
   const showEmail = useApp((s) => s.showEmail);
   const now = useApp((s) => s.now);
   const today = useApp((s) => s.today);
+  const hiddenLists = useApp((s) => s.hiddenLists);
   const archivedShown = useApp((s) => s.archivedShown);
   const toggleArchived = useApp((s) => s.toggleArchived);
   const toggleTask = useApp((s) => s.toggleTask);
 
   const { sections, archived } = useMemo(
-    () => buildRail({ tasks, showEmail, now, today }),
-    [tasks, showEmail, now, today]
+    () => buildRail({ tasks, showEmail, now, today, hiddenLists }),
+    [tasks, showEmail, now, today, hiddenLists]
   );
 
   return (

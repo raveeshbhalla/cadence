@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
+  CalendarMeta,
   CalEvent,
   CaptureContext,
   DragPayload,
   DragState,
   DropTarget,
   EventDragState,
+  ListMeta,
   ModalKind,
   ResizeState,
   SelDragState,
@@ -62,7 +64,12 @@ export interface AppState {
   // chrome
   sidebarHidden: boolean;
   archivedShown: boolean;
-  hidden: Set<CategoryKey>;
+
+  // sources (real Google calendars + task lists)
+  calendars: CalendarMeta[];
+  lists: ListMeta[];
+  hiddenCals: string[]; // calendar ids toggled off
+  hiddenLists: string[]; // task-list ids toggled off
 
   // modals
   modal: ModalKind;
@@ -101,7 +108,9 @@ export interface AppState {
   toggleSidebar: () => void;
   toggleArchived: () => void;
   toggleEmailSource: () => void;
-  toggleCal: (cat: CategoryKey) => void;
+  toggleCalendar: (id: string) => void;
+  toggleList: (id: string) => void;
+  loadCalendars: () => void;
 
   hydrate: () => void;
   loadTasks: () => void;
@@ -158,7 +167,11 @@ export const useApp = create<AppState>()(
 
   sidebarHidden: false,
   archivedShown: false,
-  hidden: new Set(),
+
+  calendars: [],
+  lists: [],
+  hiddenCals: [],
+  hiddenLists: [],
 
   modal: null,
   captureText: "",
@@ -333,23 +346,29 @@ export const useApp = create<AppState>()(
   toggleSidebar: () => set((s) => ({ sidebarHidden: !s.sidebarHidden })),
   toggleArchived: () => set((s) => ({ archivedShown: !s.archivedShown })),
   toggleEmailSource: () => set((s) => ({ showEmail: !s.showEmail })),
-  toggleCal: (cat) =>
-    set((s) => {
-      const h = new Set(s.hidden);
-      h.has(cat) ? h.delete(cat) : h.add(cat);
-      return { hidden: h };
-    }),
+  toggleCalendar: (id) =>
+    set((s) => ({ hiddenCals: s.hiddenCals.includes(id) ? s.hiddenCals.filter((x) => x !== id) : [...s.hiddenCals, id] })),
+  toggleList: (id) =>
+    set((s) => ({ hiddenLists: s.hiddenLists.includes(id) ? s.hiddenLists.filter((x) => x !== id) : [...s.hiddenLists, id] })),
+  loadCalendars: () => {
+    if (!isTauri || !get().account) return;
+    api
+      .listCalendars()
+      .then((cals) => set({ calendars: cals }))
+      .catch((e) => console.error("loadCalendars failed:", e));
+  },
 
   // Load everything in order so blocks (calendar) can attach to tasks (Tasks API).
   hydrate: async () => {
     if (!isTauri) return;
     try {
       const dtos = await api.listTasks();
-      set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")] }));
+      set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")], lists: listsFromDtos(dtos) }));
     } catch (e) {
       console.error("loadTasks failed:", e);
       get().setToast("Couldn’t load Google Tasks — " + shortErr(e));
     }
+    get().loadCalendars();
     get().loadCalendar();
     get().loadEmails();
   },
@@ -360,7 +379,7 @@ export const useApp = create<AppState>()(
     if (!isTauri) return;
     api
       .listTasks()
-      .then((dtos) => set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")] })))
+      .then((dtos) => set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")], lists: listsFromDtos(dtos) })))
       .catch(() => {});
   },
 
@@ -526,6 +545,8 @@ export const useApp = create<AppState>()(
         showEmail: s.showEmail,
         sidebarHidden: s.sidebarHidden,
         archivedShown: s.archivedShown,
+        hiddenCals: s.hiddenCals,
+        hiddenLists: s.hiddenLists,
       }),
     }
   )
@@ -555,7 +576,25 @@ function eventDtoToCalEvent(d: EventDto): CalEvent {
   const start = s.getHours() * 60 + s.getMinutes();
   let end = e.getHours() * 60 + e.getMinutes();
   if (end <= start) end = start + 30; // crosses midnight / zero-length guard
-  return { id: d.id, date: dateKey(s), start, end, title: d.title || "(no title)", cat: "work" };
+  return {
+    id: d.id,
+    date: dateKey(s),
+    start,
+    end,
+    title: d.title || "(no title)",
+    cat: "work",
+    calendarId: d.calendarId,
+    color: d.color,
+    location: d.location ?? undefined,
+    description: d.description ?? undefined,
+    hangoutLink: d.hangoutLink ?? undefined,
+  };
+}
+
+function listsFromDtos(dtos: TaskDto[]): ListMeta[] {
+  const seen = new Map<string, string>();
+  for (const d of dtos) if (d.listId && !seen.has(d.listId)) seen.set(d.listId, d.listTitle);
+  return [...seen].map(([id, title]) => ({ id, title }));
 }
 
 function dtoToTask(d: TaskDto): Task {

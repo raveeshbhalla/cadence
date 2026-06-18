@@ -21,12 +21,20 @@ function colRect(e: PointerEvent): number {
   return col ? col.getBoundingClientRect().top : 0;
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return `rgba(91,155,255,${alpha})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 function GridBlock({ pi }: { pi: PositionedItem }) {
   const startEventDrag = useApp((s) => s.startEventDrag);
   const startResize = useApp((s) => s.startResize);
   const toggleTask = useApp((s) => s.toggleTask);
   const { item } = pi;
-  const c = CATS[item.cat] || CATS.work;
+  // Meetings colour by their calendar; task blocks by category.
+  const c = item.color ? { fill: hexToRgba(item.color, 0.18), bar: item.color, text: "#EDEEF1" } : CATS[item.cat] || CATS.work;
 
   const onBodyDown = (e: PointerEvent) => {
     e.stopPropagation();
@@ -175,7 +183,8 @@ export function Calendar() {
   const accent = useApp((s) => s.accent);
   const events = useApp((s) => s.events);
   const tasks = useApp((s) => s.tasks);
-  const hidden = useApp((s) => s.hidden);
+  const hiddenCals = useApp((s) => s.hiddenCals);
+  const hiddenLists = useApp((s) => s.hiddenLists);
   const density = useApp((s) => s.density);
   const now = useApp((s) => s.now);
   const today = useApp((s) => s.today);
@@ -203,11 +212,13 @@ export function Calendar() {
   // Unified grid items: meetings + scheduled tasks (one record each).
   const perDay = useMemo(() => {
     const items: GridItem[] = [
-      ...events.map((e) => ({ id: e.id, date: e.date, start: e.start, end: e.end, title: e.title, cat: e.cat, checkable: false, done: false })),
+      ...events
+        .filter((e) => !e.calendarId || !hiddenCals.includes(e.calendarId))
+        .map((e) => ({ id: e.id, date: e.date, start: e.start, end: e.end, title: e.title, cat: e.cat, color: e.color, checkable: false, done: false })),
       ...tasks
-        .filter((t) => t.block)
+        .filter((t) => t.block && !(t.listId && hiddenLists.includes(t.listId)))
         .map((t) => ({ id: t.id, date: t.block!.date, start: t.block!.start, end: t.block!.end, title: t.title, cat: t.cat, checkable: true, done: t.status === "completed" })),
-    ].filter((it) => !hidden.has(it.cat));
+    ];
 
     return week.map((date) => {
       const dayItems = items.filter((it) => it.date === date);
@@ -223,7 +234,7 @@ export function Calendar() {
         } as PositionedItem;
       });
     });
-  }, [events, tasks, hidden, px, week]);
+  }, [events, tasks, hiddenCals, hiddenLists, px, week]);
 
   const switchPill = (label: string, active: boolean) => (
     <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, color: active ? ACCENT_FG : C.textFaint, fontWeight: active ? 600 : 400, background: active ? accent : "transparent" }}>{label}</span>

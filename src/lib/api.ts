@@ -30,6 +30,18 @@ export interface EventDto {
   end: string;
   allDay: boolean;
   cadenceTaskId: string | null;
+  calendarId: string;
+  color: string;
+  location: string | null;
+  description: string | null;
+  hangoutLink: string | null;
+}
+
+export interface CalendarDto {
+  id: string;
+  summary: string;
+  color: string;
+  primary: boolean;
 }
 
 export interface EmailDto {
@@ -94,10 +106,16 @@ export const api = {
     return invoke<void>("task_delete", { listId, id });
   },
 
-  /** List primary-calendar events in [timeMin, timeMax] (RFC3339). */
+  /** List events across all calendars in [timeMin, timeMax] (RFC3339). */
   async listEvents(timeMin: string, timeMax: string): Promise<EventDto[]> {
     if (!isTauri) return [];
     return invoke<EventDto[]>("events_list", { timeMin, timeMax });
+  },
+
+  /** The user's calendar list. */
+  async listCalendars(): Promise<CalendarDto[]> {
+    if (!isTauri) return [];
+    return invoke<CalendarDto[]>("calendars_list");
   },
 
   /** Create a time-block event linked to a task. Returns the event id. */

@@ -7,7 +7,7 @@ mod openai;
 mod tasks;
 
 use auth::Account;
-use calendar::EventDto;
+use calendar::{CalendarDto, EventDto};
 use gmail::EmailDto;
 use openai::AiParse;
 use tasks::TaskDto;
@@ -78,6 +78,11 @@ async fn events_list(time_min: String, time_max: String) -> Result<Vec<EventDto>
 }
 
 #[tauri::command]
+async fn calendars_list() -> Result<Vec<CalendarDto>, String> {
+    tauri::async_runtime::spawn_blocking(calendar::list_calendars).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn event_create(title: String, start: String, end: String, task_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || calendar::create(&title, &start, &end, &task_id))
         .await
@@ -133,6 +138,7 @@ pub fn run() {
             task_set_due,
             task_delete,
             events_list,
+            calendars_list,
             event_create,
             event_update,
             event_set_title,

@@ -1,32 +1,23 @@
 import { useMemo } from "react";
 import { ACCENT_FG, C, CATS } from "../theme";
-import type { CategoryKey } from "../theme";
 import { useApp } from "../store/app";
+import { catFromProject } from "../lib/format";
 import { dateKey, monthLabel, parseKey, weekDates } from "../lib/dates";
 import { Hoverable } from "./Hoverable";
 import { CheckList, ChevronLeft, ChevronRight, Mail, Plus } from "./Icon";
 
 const MINI_HEAD = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-const CAL_DEFS: { name: string; cat: CategoryKey }[] = [
-  { name: "Work", cat: "work" },
-  { name: "Design", cat: "design" },
-  { name: "Engineering", cat: "eng" },
-  { name: "Sales", cat: "sales" },
-  { name: "Personal", cat: "personal" },
-];
-const PROJ_DEFS: { name: string; cat: CategoryKey }[] = [
-  { name: "Work", cat: "work" },
-  { name: "Design", cat: "design" },
-  { name: "Engineering", cat: "eng" },
-  { name: "Sales", cat: "sales" },
-];
 
 export function Sidebar() {
   const accent = useApp((s) => s.accent);
   const tasks = useApp((s) => s.tasks);
-  const hidden = useApp((s) => s.hidden);
+  const calendars = useApp((s) => s.calendars);
+  const lists = useApp((s) => s.lists);
+  const hiddenCals = useApp((s) => s.hiddenCals);
+  const hiddenLists = useApp((s) => s.hiddenLists);
   const showEmail = useApp((s) => s.showEmail);
-  const toggleCal = useApp((s) => s.toggleCal);
+  const toggleCalendar = useApp((s) => s.toggleCalendar);
+  const toggleList = useApp((s) => s.toggleList);
   const toggleEmailSource = useApp((s) => s.toggleEmailSource);
   const openCapture = useApp((s) => s.openCapture);
   const prev = useApp((s) => s.prevWeek);
@@ -34,16 +25,13 @@ export function Sidebar() {
   const today = useApp((s) => s.today);
   const viewMonday = useApp((s) => s.viewMonday);
 
-  // Mini-month for the month containing the visible week, with today + the
-  // visible Mon–Fri shaded.
   const { miniCells, miniMonthLabel } = useMemo(() => {
     const week = new Set(weekDates(viewMonday));
-    const anchor = parseKey(weekDates(viewMonday)[2]); // Wednesday of the view week
+    const anchor = parseKey(weekDates(viewMonday)[2]);
     const y = anchor.getFullYear();
     const mo = anchor.getMonth();
-    const firstDow = (new Date(y, mo, 1).getDay() + 6) % 7; // Mon = 0
+    const firstDow = (new Date(y, mo, 1).getDay() + 6) % 7;
     const dim = new Date(y, mo + 1, 0).getDate();
-
     const cells: { n: number | null; key: number; style: React.CSSProperties }[] = [];
     for (let i = 0; i < firstDow; i++) cells.push({ n: null, key: -i - 1, style: {} });
     for (let d = 1; d <= dim; d++) {
@@ -64,13 +52,12 @@ export function Sidebar() {
     return { miniCells: cells, miniMonthLabel: monthLabel(weekDates(viewMonday)[2]) };
   }, [accent, today, viewMonday]);
 
-  const counts = useMemo(() => {
+  const listCounts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const p of PROJ_DEFS) c[p.cat] = tasks.filter((t) => t.status !== "completed" && t.cat === p.cat).length;
+    for (const t of tasks) if (t.listId && t.status !== "completed") c[t.listId] = (c[t.listId] || 0) + 1;
     return c;
   }, [tasks]);
 
-  const openGtasks = tasks.filter((t) => t.status !== "completed" && t.source !== "gmail").length;
   const emailCount = tasks.filter((t) => t.status !== "completed" && t.source === "gmail").length;
 
   const sectionLabel: React.CSSProperties = { marginTop: 18, fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2, marginBottom: 6 };
@@ -100,25 +87,13 @@ export function Sidebar() {
         ))}
       </div>
 
-      {/* calendars */}
-      <div style={sectionLabel}>Calendars</div>
-      {CAL_DEFS.map((cal) => {
-        const h = hidden.has(cal.cat);
-        return (
-          <Hoverable key={cal.cat} onClick={() => toggleCal(cal.cat)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 6px", borderRadius: 7, cursor: "pointer" }} hover={{ background: C.rowHover }}>
-            <span style={{ width: 11, height: 11, borderRadius: 3.5, flex: "none", background: h ? "transparent" : CATS[cal.cat].dot, border: `1.5px solid ${CATS[cal.cat].dot}` }} />
-            <span style={{ flex: 1, fontSize: 12.5, color: h ? C.textFaint2 : C.text4 }}>{cal.name}</span>
-          </Hoverable>
-        );
-      })}
-
       {/* sources */}
       <div style={sectionLabel}>Sources</div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, padding: 6, borderRadius: 7 }}>
         <CheckList stroke="#57C77E" />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12.5, color: C.text4 }}>Google Tasks</div>
-          <div style={{ fontSize: 10.5, color: C.textFaint }}>On · {openGtasks} open</div>
+          <div style={{ fontSize: 10.5, color: C.textFaint }}>{lists.length ? `${lists.length} list${lists.length > 1 ? "s" : ""}` : "On"}</div>
         </div>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#57C77E", flex: "none" }} />
       </div>
@@ -128,20 +103,42 @@ export function Sidebar() {
           <div style={{ fontSize: 12.5, color: C.text4 }}>Gmail · Primary</div>
           <div style={{ fontSize: 10.5, color: C.textFaint }}>{showEmail ? `On · ${emailCount} need reply` : "Hidden"}</div>
         </div>
-        <span style={{ width: 30, height: 18, borderRadius: 20, flex: "none", position: "relative", transition: "background .15s", background: showEmail ? accent : "#3A3D45" }}>
-          <span style={{ position: "absolute", top: 2, left: showEmail ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
-        </span>
+        <Toggle on={showEmail} accent={accent} />
       </Hoverable>
 
+      {/* calendars */}
+      {calendars.length > 0 && (
+        <>
+          <div style={sectionLabel}>Calendars</div>
+          {calendars.map((cal) => {
+            const off = hiddenCals.includes(cal.id);
+            return (
+              <Hoverable key={cal.id} onClick={() => toggleCalendar(cal.id)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 6px", borderRadius: 7, cursor: "pointer" }} hover={{ background: C.rowHover }}>
+                <span style={{ width: 11, height: 11, borderRadius: 3.5, flex: "none", background: off ? "transparent" : cal.color, border: `1.5px solid ${cal.color}` }} />
+                <span style={{ flex: 1, fontSize: 12.5, color: off ? C.textFaint2 : C.text4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cal.summary}</span>
+              </Hoverable>
+            );
+          })}
+        </>
+      )}
+
       {/* lists */}
-      <div style={sectionLabel}>Lists</div>
-      {PROJ_DEFS.map((p) => (
-        <Hoverable key={p.cat} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 6px", borderRadius: 7, cursor: "default" }} hover={{ background: C.rowHover }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, flex: "none", background: CATS[p.cat].dot }} />
-          <span style={{ flex: 1, fontSize: 12.5, color: C.text5 }}>{p.name}</span>
-          <span style={{ fontSize: 11, color: C.textFaint2 }}>{counts[p.cat]}</span>
-        </Hoverable>
-      ))}
+      {lists.length > 0 && (
+        <>
+          <div style={sectionLabel}>Lists</div>
+          {lists.map((list) => {
+            const off = hiddenLists.includes(list.id);
+            const dot = CATS[catFromProject(list.title)].dot;
+            return (
+              <Hoverable key={list.id} onClick={() => toggleList(list.id)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 6px", borderRadius: 7, cursor: "pointer" }} hover={{ background: C.rowHover }}>
+                <span style={{ width: 7, height: 7, borderRadius: 2, flex: "none", background: off ? "transparent" : dot, border: `1.5px solid ${dot}` }} />
+                <span style={{ flex: 1, fontSize: 12.5, color: off ? C.textFaint2 : C.text5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{list.title}</span>
+                <span style={{ fontSize: 11, color: C.textFaint2 }}>{listCounts[list.id] || 0}</span>
+              </Hoverable>
+            );
+          })}
+        </>
+      )}
 
       <div style={{ flex: 1 }} />
       <Hoverable as="button" onClick={openCapture} style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8, width: "100%", background: C.rowHover, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "8px 10px", color: "#A2A6B0", fontSize: 12.5, cursor: "pointer" }} hover={{ background: "#222630", color: "#fff" }}>
@@ -150,5 +147,13 @@ export function Sidebar() {
         <span style={{ marginLeft: "auto", fontSize: 11, color: C.textFaint, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, padding: "0 5px" }}>⌘N</span>
       </Hoverable>
     </div>
+  );
+}
+
+function Toggle({ on, accent }: { on: boolean; accent: string }) {
+  return (
+    <span style={{ width: 30, height: 18, borderRadius: 20, flex: "none", position: "relative", transition: "background .15s", background: on ? accent : "#3A3D45" }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
+    </span>
   );
 }
