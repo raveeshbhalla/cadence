@@ -1,0 +1,33 @@
+import { C } from "../theme";
+import { useApp } from "../store/app";
+import { usePointerHandlers } from "../store/usePointerHandlers";
+import { Titlebar } from "./Titlebar";
+import { Sidebar } from "./Sidebar";
+import { Calendar } from "./Calendar";
+import { TaskRail } from "./TaskRail";
+import { Capture } from "./Capture";
+import { CommandPalette } from "./CommandPalette";
+import { Toast } from "./Toast";
+import { DragChip } from "./DragChip";
+
+export function MainApp() {
+  usePointerHandlers();
+  const sidebarHidden = useApp((s) => s.sidebarHidden);
+  const modal = useApp((s) => s.modal);
+
+  return (
+    <div className="no-select" style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.windowBg, overflow: "hidden" }}>
+      <Titlebar />
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        {!sidebarHidden && <Sidebar />}
+        <Calendar />
+        <TaskRail />
+      </div>
+
+      <DragChip />
+      <Toast />
+      {modal === "capture" && <Capture />}
+      {modal === "palette" && <CommandPalette />}
+    </div>
+  );
+}
