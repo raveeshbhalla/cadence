@@ -137,6 +137,12 @@ export const api = {
     return invoke<CalendarDto[]>("calendars_list");
   },
 
+  /** Search events across all calendars in [timeMin, timeMax]. */
+  async searchEvents(q: string, timeMin: string, timeMax: string): Promise<EventDto[]> {
+    if (!isTauri) return [];
+    return invoke<EventDto[]>("events_search", { q, timeMin, timeMax });
+  },
+
   /** Create a time-block event linked to a task. Returns the event id. */
   async createEvent(title: string, start: string, end: string, taskId: string): Promise<string> {
     return invoke<string>("event_create", { title, start, end, taskId });

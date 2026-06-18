@@ -250,6 +250,11 @@ export function usePointerHandlers() {
         s.joinNextMeeting();
         return;
       }
+      if (meta && k === "f") {
+        e.preventDefault();
+        s.openSearch();
+        return;
+      }
       if (k === "escape") {
         if (s.modal) s.closeModal();
         else if (s.editorId) s.closeEditor();

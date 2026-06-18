@@ -14,6 +14,7 @@ import { CommandPalette } from "./CommandPalette";
 import { Settings } from "./Settings";
 import { Shortcuts } from "./Shortcuts";
 import { GoToDate } from "./GoToDate";
+import { Search } from "./Search";
 import { TaskEditor } from "./TaskEditor";
 import { EventDetails } from "./EventDetails";
 import { AvailabilityPanel } from "./AvailabilityPanel";
@@ -98,6 +99,7 @@ export function MainApp() {
       {modal === "settings" && <Settings />}
       {modal === "shortcuts" && <Shortcuts />}
       {modal === "goto" && <GoToDate />}
+      {modal === "search" && <Search />}
       {editorId && <TaskEditor />}
       {eventDetailsId && <EventDetails />}
       {availabilityMode && <AvailabilityPanel />}

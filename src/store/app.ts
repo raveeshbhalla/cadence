@@ -120,6 +120,7 @@ export interface AppState {
   openSettings: () => void;
   openShortcuts: () => void;
   openGoto: () => void;
+  openSearch: () => void;
   closeModal: () => void;
   joinNextMeeting: () => void;
   jumpToDate: (date: string) => void;
@@ -276,6 +277,7 @@ export const useApp = create<AppState>()(
   openSettings: () => set({ modal: "settings" }),
   openShortcuts: () => set({ modal: "shortcuts" }),
   openGoto: () => set({ modal: "goto" }),
+  openSearch: () => set({ modal: "search" }),
   closeModal: () => set({ modal: null, captureContext: null }),
 
   // Open the soonest upcoming meeting that has a conference link.

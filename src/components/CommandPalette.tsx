@@ -28,6 +28,7 @@ export function CommandPalette() {
       { id: "join", name: "Join next meeting", hint: "⌘J", glyph: "⏵", run: () => { s.closeModal(); s.joinNextMeeting(); } },
       { id: "buffer", name: "Add buffer after next meeting", hint: "", glyph: "▱", run: () => { s.closeModal(); s.bufferNextMeeting(); } },
       { id: "today", name: "Go to today", hint: "T", glyph: "◆", run: () => { s.closeModal(); s.gotoToday(); } },
+      { id: "search", name: "Search events & tasks…", hint: "⌘F", glyph: "⌕", run: () => s.openSearch() },
       { id: "goto", name: "Go to date…", hint: "G", glyph: "◷", run: () => s.openGoto() },
       { id: "shortcuts", name: "Keyboard shortcuts", hint: "?", glyph: "⌘", run: () => s.openShortcuts() },
       { id: "roll", name: "Roll overdue tasks to today", hint: "", glyph: "↻", run: () => { s.closeModal(); s.rollOverdue(); } },

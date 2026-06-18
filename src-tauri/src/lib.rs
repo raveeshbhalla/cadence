@@ -98,6 +98,13 @@ async fn calendars_list() -> Result<Vec<CalendarDto>, String> {
 }
 
 #[tauri::command]
+async fn events_search(q: String, time_min: String, time_max: String) -> Result<Vec<EventDto>, String> {
+    tauri::async_runtime::spawn_blocking(move || calendar::search(&q, &time_min, &time_max))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn event_create(title: String, start: String, end: String, task_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || calendar::create(&title, &start, &end, &task_id))
         .await
@@ -224,6 +231,7 @@ pub fn run() {
             task_delete,
             events_list,
             calendars_list,
+            events_search,
             event_create,
             event_create_meeting,
             event_update,

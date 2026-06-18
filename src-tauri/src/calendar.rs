@@ -81,38 +81,73 @@ pub fn list(time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
         };
 
         for ev in resp["items"].as_array().unwrap_or(&empty) {
-            let start_obj = &ev["start"];
-            let end_obj = &ev["end"];
-            let (start, all_day) = match start_obj["dateTime"].as_str() {
-                Some(dt) => (dt.to_string(), false),
-                None => match start_obj["date"].as_str() {
-                    Some(d) => (d.to_string(), true),
-                    None => continue,
-                },
-            };
-            let end = end_obj["dateTime"].as_str().or_else(|| end_obj["date"].as_str()).unwrap_or(&start).to_string();
-            let declined = ev["attendees"]
-                .as_array()
-                .map(|atts| atts.iter().any(|a| a["self"].as_bool() == Some(true) && a["responseStatus"].as_str() == Some("declined")))
-                .unwrap_or(false);
-
-            out.push(EventDto {
-                id: ev["id"].as_str().unwrap_or_default().to_string(),
-                title: ev["summary"].as_str().unwrap_or("(no title)").to_string(),
-                start,
-                end,
-                all_day,
-                cadence_task_id: ev["extendedProperties"]["private"]["cadenceTaskId"].as_str().map(|s| s.to_string()),
-                calendar_id: cal_id.to_string(),
-                color: color.clone(),
-                location: ev["location"].as_str().map(|s| s.to_string()),
-                description: ev["description"].as_str().map(|s| s.to_string()),
-                hangout_link: ev["hangoutLink"].as_str().or_else(|| ev["conferenceData"]["entryPoints"][0]["uri"].as_str()).map(|s| s.to_string()),
-                declined,
-            });
+            if let Some(dto) = build_event(ev, cal_id, &color) {
+                out.push(dto);
+            }
         }
     }
     Ok(out)
+}
+
+/// Search events across all calendars (q matches title/description/attendees).
+pub fn search(q: &str, time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
+    let token = google::token()?;
+    let cals = google::get_json(&token, &format!("{BASE}/users/me/calendarList"))?;
+    let empty = vec![];
+    let mut out = Vec::new();
+    for c in cals["items"].as_array().unwrap_or(&empty) {
+        let cal_id = c["id"].as_str().unwrap_or_default();
+        if cal_id.is_empty() {
+            continue;
+        }
+        let color = c["backgroundColor"].as_str().unwrap_or("#5B9BFF").to_string();
+        let url = format!(
+            "{BASE}/calendars/{}/events?singleEvents=true&orderBy=startTime&maxResults=20&q={}&timeMin={}&timeMax={}",
+            urlencode(cal_id),
+            urlencode(q),
+            urlencode(time_min),
+            urlencode(time_max)
+        );
+        let resp = match google::get_json(&token, &url) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        for ev in resp["items"].as_array().unwrap_or(&empty) {
+            if let Some(dto) = build_event(ev, cal_id, &color) {
+                out.push(dto);
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn build_event(ev: &Value, cal_id: &str, color: &str) -> Option<EventDto> {
+    let start_obj = &ev["start"];
+    let end_obj = &ev["end"];
+    let (start, all_day) = match start_obj["dateTime"].as_str() {
+        Some(dt) => (dt.to_string(), false),
+        None => (start_obj["date"].as_str()?.to_string(), true),
+    };
+    let end = end_obj["dateTime"].as_str().or_else(|| end_obj["date"].as_str()).unwrap_or(&start).to_string();
+    let declined = ev["attendees"]
+        .as_array()
+        .map(|atts| atts.iter().any(|a| a["self"].as_bool() == Some(true) && a["responseStatus"].as_str() == Some("declined")))
+        .unwrap_or(false);
+
+    Some(EventDto {
+        id: ev["id"].as_str().unwrap_or_default().to_string(),
+        title: ev["summary"].as_str().unwrap_or("(no title)").to_string(),
+        start,
+        end,
+        all_day,
+        cadence_task_id: ev["extendedProperties"]["private"]["cadenceTaskId"].as_str().map(|s| s.to_string()),
+        calendar_id: cal_id.to_string(),
+        color: color.to_string(),
+        location: ev["location"].as_str().map(|s| s.to_string()),
+        description: ev["description"].as_str().map(|s| s.to_string()),
+        hangout_link: ev["hangoutLink"].as_str().or_else(|| ev["conferenceData"]["entryPoints"][0]["uri"].as_str()).map(|s| s.to_string()),
+        declined,
+    })
 }
 
 /// Create a plain calendar event (a meeting, not a task block). Returns the id.
