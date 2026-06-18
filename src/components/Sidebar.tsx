@@ -3,14 +3,16 @@ import { ACCENT_FG, C, CATS } from "../theme";
 import { useApp } from "../store/app";
 import { catFromProject } from "../lib/format";
 import { dateKey, monthLabel, parseKey, weekDates } from "../lib/dates";
+import { taskListKey } from "../lib/taskLists";
 import { Hoverable } from "./Hoverable";
-import { CheckList, ChevronLeft, ChevronRight, Mail, Plus } from "./Icon";
+import { ChevronLeft, ChevronRight, Mail, Plus } from "./Icon";
 
 const MINI_HEAD = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 export function Sidebar() {
   const accent = useApp((s) => s.accent);
   const tasks = useApp((s) => s.tasks);
+  const events = useApp((s) => s.events);
   const calendars = useApp((s) => s.calendars);
   const lists = useApp((s) => s.lists);
   const hiddenCals = useApp((s) => s.hiddenCals);
@@ -22,8 +24,11 @@ export function Sidebar() {
   const openCapture = useApp((s) => s.openCapture);
   const prev = useApp((s) => s.prevWeek);
   const next = useApp((s) => s.nextWeek);
+  const jumpToDate = useApp((s) => s.jumpToDate);
   const today = useApp((s) => s.today);
   const viewMonday = useApp((s) => s.viewMonday);
+  const view = useApp((s) => s.view);
+  const focusDay = useApp((s) => s.focusDay);
 
   const { miniCells, miniMonthLabel } = useMemo(() => {
     const week = new Set(weekDates(viewMonday));
@@ -32,14 +37,24 @@ export function Sidebar() {
     const mo = anchor.getMonth();
     const firstDow = (new Date(y, mo, 1).getDay() + 6) % 7;
     const dim = new Date(y, mo + 1, 0).getDate();
-    const cells: { n: number | null; key: number; style: React.CSSProperties }[] = [];
-    for (let i = 0; i < firstDow; i++) cells.push({ n: null, key: -i - 1, style: {} });
+    const cells: { n: number | null; key: string; date: string | null; style: React.CSSProperties }[] = [];
+    for (let i = 0; i < firstDow; i++) cells.push({ n: null, key: `blank-${i}`, date: null, style: {} });
     for (let d = 1; d <= dim; d++) {
       const key = dateKey(new Date(y, mo, d));
       const isToday = key === today;
+      const isSelected = view === "day" ? key === focusDay : isToday;
       const inWeek = week.has(key);
-      const style: React.CSSProperties = { fontSize: 11, textAlign: "center", padding: "4px 0", borderRadius: 6 };
-      if (isToday) {
+      const style: React.CSSProperties = {
+        appearance: "none",
+        border: "none",
+        fontSize: 11,
+        textAlign: "center",
+        padding: "4px 0",
+        borderRadius: 6,
+        background: "transparent",
+        cursor: "pointer",
+      };
+      if (isSelected) {
         style.background = accent;
         style.color = ACCENT_FG;
         style.fontWeight = 700;
@@ -47,16 +62,30 @@ export function Sidebar() {
         style.background = "rgba(255,255,255,0.05)";
         style.color = C.text3;
       } else style.color = C.textMute;
-      cells.push({ n: d, key: d, style });
+      cells.push({ n: d, key, date: key, style });
     }
     return { miniCells: cells, miniMonthLabel: monthLabel(weekDates(viewMonday)[2]) };
-  }, [accent, today, viewMonday]);
+  }, [accent, focusDay, today, view, viewMonday]);
 
   const listCounts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const t of tasks) if (t.listId && t.status !== "completed") c[t.listId] = (c[t.listId] || 0) + 1;
+    for (const t of tasks) {
+      if (t.status === "completed") continue;
+      const key = taskListKey(t);
+      if (key) c[key] = (c[key] || 0) + 1;
+    }
     return c;
   }, [tasks]);
+
+  const taskLists = useMemo(() => {
+    if (lists.length) return lists;
+    const seen = new Map<string, string>();
+    for (const t of tasks) {
+      const key = taskListKey(t);
+      if (key && !seen.has(key)) seen.set(key, t.project || "No list");
+    }
+    return Array.from(seen, ([id, title]) => ({ id, title })).sort((a, b) => a.title.localeCompare(b.title));
+  }, [lists, tasks]);
 
   const emailCount = tasks.filter((t) => t.status !== "completed" && t.source === "gmail").length;
 
@@ -82,21 +111,19 @@ export function Sidebar() {
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1 }}>
-        {miniCells.map((c) => (
-          <span key={c.key} style={c.style}>{c.n}</span>
-        ))}
+        {miniCells.map((c) =>
+          c.date ? (
+            <button key={c.key} onClick={() => jumpToDate(c.date!)} style={c.style}>
+              {c.n}
+            </button>
+          ) : (
+            <span key={c.key} style={c.style} />
+          )
+        )}
       </div>
 
-      {/* sources */}
-      <div style={sectionLabel}>Sources</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: 6, borderRadius: 7 }}>
-        <CheckList stroke="#57C77E" />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, color: C.text4 }}>Google Tasks</div>
-          <div style={{ fontSize: 10.5, color: C.textFaint }}>{lists.length ? `${lists.length} list${lists.length > 1 ? "s" : ""}` : "On"}</div>
-        </div>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#57C77E", flex: "none" }} />
-      </div>
+      {/* email sources */}
+      <div style={sectionLabel}>Email</div>
       <Hoverable onClick={toggleEmailSource} style={{ display: "flex", alignItems: "center", gap: 9, padding: 6, borderRadius: 7, cursor: "pointer" }} hover={{ background: C.rowHover }}>
         <Mail />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -107,10 +134,10 @@ export function Sidebar() {
       </Hoverable>
 
       {/* calendars */}
-      {calendars.length > 0 && (
+      {(calendars.length > 0 || events.length > 0) && (
         <>
           <div style={sectionLabel}>Calendars</div>
-          {calendars.map((cal) => {
+          {(calendars.length ? calendars : [{ id: "local-calendar", summary: "Calendar", color: accent, primary: true }]).map((cal) => {
             const off = hiddenCals.includes(cal.id);
             return (
               <Hoverable key={cal.id} onClick={() => toggleCalendar(cal.id)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 6px", borderRadius: 7, cursor: "pointer" }} hover={{ background: C.rowHover }}>
@@ -123,10 +150,10 @@ export function Sidebar() {
       )}
 
       {/* lists */}
-      {lists.length > 0 && (
+      {taskLists.length > 0 && (
         <>
-          <div style={sectionLabel}>Lists</div>
-          {lists.map((list) => {
+          <div style={sectionLabel}>Tasks</div>
+          {taskLists.map((list) => {
             const off = hiddenLists.includes(list.id);
             const dot = CATS[catFromProject(list.title)].dot;
             return (
@@ -144,7 +171,7 @@ export function Sidebar() {
       <Hoverable as="button" onClick={openCapture} style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8, width: "100%", background: C.rowHover, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "8px 10px", color: "#A2A6B0", fontSize: 12.5, cursor: "pointer" }} hover={{ background: "#222630", color: "#fff" }}>
         <Plus />
         New task
-        <span style={{ marginLeft: "auto", fontSize: 11, color: C.textFaint, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, padding: "0 5px" }}>⌘N</span>
+        <span className="keycap" style={{ marginLeft: "auto" }}>⌘N</span>
       </Hoverable>
     </div>
   );

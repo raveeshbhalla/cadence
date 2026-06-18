@@ -73,8 +73,8 @@ export function GoToDate() {
           {preview || "Type a date…"}
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", padding: "11px 16px", background: C.modalFooterBg, borderTop: `1px solid ${C.border}` }}>
-          <button onClick={() => resolved && jumpToDate(resolved)} disabled={!resolved} style={{ background: resolved ? accent : C.rowHover, color: resolved ? ACCENT_FG : C.textFaint2, fontWeight: 600, fontSize: 13, border: "none", borderRadius: 8, padding: "7px 16px", cursor: resolved ? "pointer" : "default" }}>
-            Go <span style={{ opacity: 0.6 }}>↵</span>
+          <button onClick={() => resolved && jumpToDate(resolved)} disabled={!resolved} style={{ display: "flex", alignItems: "center", gap: 8, background: resolved ? accent : C.rowHover, color: resolved ? ACCENT_FG : C.textFaint2, fontWeight: 600, fontSize: 13, border: "none", borderRadius: 8, padding: "7px 16px", cursor: resolved ? "pointer" : "default" }}>
+            Go <span className="keycap">↵</span>
           </button>
         </div>
       </div>

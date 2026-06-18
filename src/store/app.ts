@@ -29,6 +29,7 @@ import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "..
 import { parseCapture } from "../lib/parse";
 import { meetingLink } from "../lib/meeting";
 import { playPop } from "../lib/sound";
+import { taskListKey } from "../lib/taskLists";
 import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
 import { usePointer } from "./pointer";
 
@@ -314,7 +315,7 @@ export const useApp = create<AppState>()(
   },
 
   jumpToDate: (date) => {
-    set({ viewMonday: mondayOf(parseKey(date)), modal: null });
+    set({ viewMonday: mondayOf(parseKey(date)), focusDay: date, modal: null });
     get().loadCalendar();
   },
 
@@ -807,7 +808,8 @@ export const useApp = create<AppState>()(
     const ids = s.tasks
       .filter((t) => {
         if (t.status === "completed" || t.block) return false;
-        if (t.listId && hiddenLists.includes(t.listId)) return false;
+        const key = taskListKey(t);
+        if (key && hiddenLists.includes(key)) return false;
         // unreplied email + overdue/today tasks
         if (t.source === "gmail") return s.showEmail;
         return t.due != null && t.due <= s.today;

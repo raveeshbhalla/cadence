@@ -1,6 +1,6 @@
 import type { CategoryKey } from "../theme";
 import { catFromProject } from "./format";
-import { addDays, nextDow, weekdayShort } from "./dates";
+import { addDays, mondayOf, nextDow, parseKey, weekdayShort } from "./dates";
 
 export interface ParsedCapture {
   title: string;
@@ -125,13 +125,73 @@ export function parseCapture(text: string, today: string): ParsedCapture {
   return { title, project, cat, est, time, date, dayLabel, checkbox };
 }
 
+const DOW_KEYS = Object.keys(DOW_MAP).sort((a, b) => b.length - a.length);
+
+function nextDowAfter(today: string, dow: number): string {
+  const date = nextDow(today, dow);
+  return date === today ? addDays(date, 7) : date;
+}
+
+function nextWeekMonday(today: string): string {
+  return addDays(mondayOf(parseKey(today)), 7);
+}
+
+function resolveWhenDate(text: string, today: string): { text: string; date: string } {
+  let t = text;
+  let date = today;
+  const nextWeek = /\bnext\s+week\b/i.test(t);
+  const baseDate = nextWeek ? nextWeekMonday(today) : today;
+
+  if (nextWeek) {
+    date = baseDate;
+    t = t.replace(/\bnext\s+week\b/i, " ");
+  }
+
+  if (/\btoday\b/i.test(t)) {
+    date = today;
+    t = t.replace(/\btoday\b/i, " ");
+  } else if (/\btomorrow\b/i.test(t)) {
+    date = addDays(today, 1);
+    t = t.replace(/\btomorrow\b/i, " ");
+  }
+
+  for (const key of DOW_KEYS) {
+    const re = new RegExp("\\b(?:(next|this)\\s+)?" + key + "\\b", "i");
+    const m = t.match(re);
+    if (!m) continue;
+
+    const dow = DOW_MAP[key];
+    if (nextWeek) {
+      const baseDow = parseKey(baseDate).getDay();
+      date = addDays(baseDate, (dow - baseDow + 7) % 7);
+    } else if (m[1]?.toLowerCase() === "next") {
+      date = nextDowAfter(today, dow);
+    } else {
+      date = nextDow(today, dow);
+    }
+    t = t.replace(re, " ");
+    break;
+  }
+
+  return { text: t, date };
+}
+
+export interface ParsedWhen {
+  date: string;
+  start: number;
+  dur: number;
+}
+
 /**
- * Parse a short "when" expression for triage into a start minute + duration.
- * "8" → next 8 o'clock; "8pm" → 20:00 (30m default); "8-9pm" → 20:00 for 1h;
- * "8pm, 90 mins" / "8pm 90m" → 20:00 for 90m. Returns null if no time is found.
+ * Parse a short "when" expression for triage into a resolved date, start minute,
+ * and duration. "8" → next 8 o'clock today; "tomorrow 8pm" → tomorrow at 20:00;
+ * "next week 2pm" → next Monday at 14:00; "8-9pm" → 20:00 for 1h.
+ * Returns null if no time is found.
  */
-export function parseWhen(text: string, nowMin: number): { start: number; dur: number } | null {
+export function parseWhen(text: string, nowMin: number, today: string): ParsedWhen | null {
   let t = " " + (text || "").toLowerCase().trim() + " ";
+  const resolved = resolveWhenDate(t, today);
+  t = resolved.text;
   const to24 = (h: string, mm: string | undefined, ap: string | undefined) => {
     let hh = parseInt(h) % (ap ? 12 : 24);
     if (ap && /pm/.test(ap)) hh += 12;
@@ -145,7 +205,7 @@ export function parseWhen(text: string, nowMin: number): { start: number; dur: n
     const ap2 = r[6] || r[3];
     const s = to24(r[1], r[2], ap1);
     const e = to24(r[4], r[5], ap2);
-    if (e > s) return { start: s, dur: e - s };
+    if (e > s) return { date: resolved.date, start: s, dur: e - s };
   }
 
   // Optional explicit duration.
@@ -161,15 +221,21 @@ export function parseWhen(text: string, nowMin: number): { start: number; dur: n
   if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/))) {
     start = to24(m[1], m[2], m[3]);
   } else if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\b/))) {
-    // bare hour → the next time that o'clock occurs
+    // Bare hour today → the next time that o'clock occurs. On future dates,
+    // use a daytime default for small hours so "tomorrow 2" means 2 PM.
     const h = parseInt(m[1]);
     const mm = m[2] ? parseInt(m[2]) : 0;
     if (h >= 0 && h <= 23) {
-      const cands = h <= 12 ? [h * 60 + mm, ((h % 12) + 12) * 60 + mm] : [h * 60 + mm];
-      const future = cands.filter((c) => c > nowMin).sort((a, b) => a - b);
-      start = future.length ? future[0] : Math.max(...cands);
+      if (resolved.date === today) {
+        const cands = h <= 12 ? [h * 60 + mm, ((h % 12) + 12) * 60 + mm] : [h * 60 + mm];
+        const future = cands.filter((c) => c > nowMin).sort((a, b) => a - b);
+        start = future.length ? future[0] : Math.max(...cands);
+      } else {
+        const hh = h > 0 && h < 7 ? h + 12 : h;
+        start = hh * 60 + mm;
+      }
     }
   }
   if (start == null) return null;
-  return { start, dur: dur ?? 30 };
+  return { date: resolved.date, start, dur: dur ?? 30 };
 }
