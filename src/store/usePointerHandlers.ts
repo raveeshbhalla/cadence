@@ -174,6 +174,9 @@ export function usePointerHandlers() {
         } else if (s.tasks.some((t) => t.id === ed.id && t.block)) {
           // a click (no drag) on a task block → open its editor
           s.openEditor(ed.id);
+        } else {
+          // a click on a meeting → open its details
+          s.openEventDetails(ed.id);
         }
         s.setInteraction({ eventDrag: null, dropTarget: null });
         return;
@@ -240,6 +243,7 @@ export function usePointerHandlers() {
       if (k === "escape") {
         if (s.modal) s.closeModal();
         else if (s.editorId) s.closeEditor();
+        else if (s.eventDetailsId) s.closeEventDetails();
       }
     };
 

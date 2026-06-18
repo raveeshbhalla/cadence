@@ -78,6 +78,8 @@ export interface AppState {
   paletteQuery: string;
   /** Task id currently open in the detail editor, if any. */
   editorId: string | null;
+  /** Meeting (event) id currently open in the details view, if any. */
+  eventDetailsId: string | null;
 
   // ephemeral
   toast: ToastState | null;
@@ -118,6 +120,8 @@ export interface AppState {
   loadEmails: () => void;
   openEditor: (id: string) => void;
   closeEditor: () => void;
+  openEventDetails: (id: string) => void;
+  closeEventDetails: () => void;
   renameTask: (id: string, title: string) => void;
   deleteTask: (id: string) => void;
   unscheduleTask: (id: string) => void;
@@ -178,6 +182,7 @@ export const useApp = create<AppState>()(
   captureContext: null,
   paletteQuery: "",
   editorId: null,
+  eventDetailsId: null,
 
   toast: null,
   undoSnap: null,
@@ -445,6 +450,8 @@ export const useApp = create<AppState>()(
 
   openEditor: (id) => set({ editorId: id }),
   closeEditor: () => set({ editorId: null }),
+  openEventDetails: (id) => set({ eventDetailsId: id }),
+  closeEventDetails: () => set({ eventDetailsId: null }),
 
   renameTask: (id, title) => {
     const s = get();

@@ -79,6 +79,15 @@ export const api = {
     return invoke<void>("sign_out");
   },
 
+  /** Open a URL in the default browser. */
+  async openUrl(url: string): Promise<void> {
+    if (!isTauri) {
+      window.open(url, "_blank");
+      return;
+    }
+    return invoke<void>("open_url", { url });
+  },
+
   /** Read all Google Tasks across the user's lists. */
   async listTasks(): Promise<TaskDto[]> {
     if (!isTauri) return [];

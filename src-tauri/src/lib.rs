@@ -30,6 +30,12 @@ fn sign_out() -> Result<(), String> {
     auth::clear_tokens()
 }
 
+/// Open a URL (meeting link, etc.) in the user's default browser.
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    open::that(url).map_err(|e| e.to_string())
+}
+
 // ── Google Tasks ──────────────────────────────────────────────────
 #[tauri::command]
 async fn tasks_list() -> Result<Vec<TaskDto>, String> {
@@ -131,6 +137,7 @@ pub fn run() {
             google_sign_in,
             auth_status,
             sign_out,
+            open_url,
             tasks_list,
             task_set_status,
             task_create,

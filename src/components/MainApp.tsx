@@ -10,6 +10,7 @@ import { Capture } from "./Capture";
 import { CommandPalette } from "./CommandPalette";
 import { Settings } from "./Settings";
 import { TaskEditor } from "./TaskEditor";
+import { EventDetails } from "./EventDetails";
 import { Toast } from "./Toast";
 import { DragChip } from "./DragChip";
 
@@ -18,6 +19,7 @@ export function MainApp() {
   const sidebarHidden = useApp((s) => s.sidebarHidden);
   const modal = useApp((s) => s.modal);
   const editorId = useApp((s) => s.editorId);
+  const eventDetailsId = useApp((s) => s.eventDetailsId);
   const tickNow = useApp((s) => s.tickNow);
 
   // Keep the now-line and date buckets current.
@@ -41,6 +43,7 @@ export function MainApp() {
       {modal === "palette" && <CommandPalette />}
       {modal === "settings" && <Settings />}
       {editorId && <TaskEditor />}
+      {eventDetailsId && <EventDetails />}
     </div>
   );
 }
