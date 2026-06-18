@@ -46,3 +46,46 @@ Disposition key: ✅ Built · 🔨 Building this round · 📋 Planned next · �
 ### This round — building #1, #2, #3, #4, #5, #6
 Chosen because they're high-frequency complaints, distinctive vs. stock Google, and build
 directly on data/flows Cadence already owns (no new scopes or heavy infra).
+
+---
+
+## Round 2 (4 agents: churn/trust, integrations, red-team gaps, niche power-users)
+
+New ideas only (the agents were given Round 1 as an avoid-list). High convergence on
+**correctness gaps** (all-day events, recurring, day/weekend views) and **trust** (export, sync ledger).
+
+| # | Idea | User problem (cited) | Source | Disposition |
+|---|------|----------------------|--------|-------------|
+| 29 | **All-day events** rendered in a banner lane (currently dropped!) | "Display All Day / Multiple Day events on my timeline"; birthdays/PTO/deadlines vanish | support.google.com/calendar/thread/902104 | 🔨 this round (bug) |
+| 30 | **Day / weekend view toggle** (1 / 5 / 7-day) | "unable to remove weekends"; "Show Weekends not respected"; need single-Day focus | support.google.com/calendar/thread/182313116 | 🔨 this round |
+| 31 | **Event search** (⌘F across past/future events + tasks) | "hit / to instantly look up past meetings"; "how can I see past events" | x.com/googlecalendar/status/1999120740415672614 | 🔨 this round |
+| 32 | **Native meeting reminders / notifications** (fire when in another app) | "pop-up alert 10 min before"; "no notifications for calendar appointments" → missed meetings | docs.meeting-reminders.com; learn.microsoft.com | 🔨 this round |
+| 33 | **Data export / "leave anytime"** (JSON/ICS/CSV) — trust | lock-in fear; "why stick with anything"; Akiflow exit pain | macstories.net/notes/llms-for-data-portability | 🔨 this round |
+| 34 | **Sync-health + change ledger** ("what Cadence wrote to Google") | "stopped trusting it" after silent sync glitches/stale state | product.akiflow.com/changelog | 📋 next (trust) |
+| 35 | **To-do bankruptcy / declutter** (archive stale 30d+ tasks) | "lists become so overgrown users stop opening them" | todoist.com/inspiration/todo-list-bankruptcy | 📋 next |
+| 36 | **Recurring edit-scope** (this / following / all) on synced series | "what should be set once ends up managed again and again" | getclockwise.com/blog/recurring-meetings | ⏸ defer (read already works via singleEvents) |
+| 37 | **Multiple Google accounts** (work+personal in one view) | "Find a Time can't see a second account… suggests slots that conflict" | syncdate.app/blog | ⏸ defer (large; makes smart features correct) |
+| 38 | **Month view** | "am I free the week of the 20th?" needs month granularity | usecarly.com all-day events | ⏸ defer (after all-day) |
+| 39 | **Offline mode** (cached week, queued writes) | "view/edit calendar offline"; native app should beat web | support.google.com/calendar/answer/1340696 | ⏸ defer (large) |
+| 40 | **macOS Focus mode follows meetings** | "tie focus modes to calendar events… no built-in trigger" | discussions.apple.com/thread/255620382 | ⏸ defer (OS scripting) |
+| 41 | **Slack/Teams status sync** (richer than stock) | stock GCal-Slack only sets blunt "In a meeting" | slack.com/help/articles/206329808 | ⏸ defer (needs Slack) |
+| 42 | **Canonical Join link** (dedup Zoom links, tel: dial) | "two different Zoom links… couldn't get into the call" | community.zoom.com/…/25636 | 📋 next (cheap parsing win) |
+| 43 | **ICS / CalDAV read-only subscriptions** (sports/school/team) | "ICS feeds are read-only… route through Google adds friction" | sportscal.io/ical-sports-calendars | ⏸ defer |
+| 44 | **Attendee enrichment** (contacts + last-emailed) | category of "calendar enrichment" tools; manual lookups today | linkedin.com/help/linkedin/answer/a548295 | ⏸ defer (overlaps pre-meeting brief) |
+| 45 | **Recurring agenda doc + action-item carry-over** | "carry over to-do items week to week… getting a new file every time" | support.google.com/calendar/thread/68559399 | ⏸ defer (Drive) |
+| 46 | **Travel-time blocks + leave-now** (location-aware) | dead location field; manual travel padding | discussions.apple.com/thread/254842820 | ⏸ defer (routing API) |
+| 47 | **Import Apple Reminders / Todoist / TickTick** | DIY syncs "lose date + attachment data"; capture-anywhere | morgen.so/notion-integration | ⏸ defer |
+| 48 | **Built-in booking page** (Calendly-lite, writes back) | whole "Calendly alternative" category; want it in-calendar | calendly.com/blog | ❌ reject (needs hosted page/server) |
+| 49 | **Estimate calibration coach** (personal padding multiplier) | "think emails take 30m, take 50"; nobody closes the loop | thebusinessdive.com/akiflow-vs-sunsama | ⏸ defer (needs actuals tracking) |
+| 50 | **Read-only "today" summary** (daily self-email / agenda event) | planner becomes "another thing to maintain / check" | saner.ai/blogs/sunsama-reviews | ⏸ defer (gmail.send scope) |
+| 51 | **Preview-before-apply for any auto-reschedule** (staged diff) | Motion "surprises when AI moves blocks… fighting the AI" | saner.ai/blogs/motion-reviews | ⏸ defer (gated on auto-reschedule) |
+| 52 | **EA "acting as / multi-principal" mode** | "cannot view all calendars simultaneously in a meaningful way" | calendhub.com/blog | ⏸ defer (large) |
+| 53 | **Per-person scheduling profile + VIP badges** | EAs must remember each exec's idiosyncratic rules | practicallyperfectpa.com | ⏸ defer |
+| 54 | **Pencil-in tentative holds that auto-resolve** | tentative meetings cause "double, triple bookings" | learn.microsoft.com/…/4618673 | ⏸ defer |
+| 55 | **Meeting notes pinned to event (+ carry-over)** | "no easy way to carry over action items week to week" | techcommunity.microsoft.com | ⏸ defer |
+| 56 | **Billable-hours ledger from calendar** (tag + CSV) | "reconstructing time from memory… lose up to 70% of revenue" | rocketlane.com/blogs | ⏸ defer |
+| 57 | **Weekly time audit / maker-vs-manager report** | "23 hrs/week in meetings"; maker time fragmented | paulgraham.com/makersschedule.html | 📋 next (light version) |
+| 58 | **Deadline backward-planner** (scatter prep blocks) | "start 15 days prior… block recurring time before due date" | ucdenver.edu time-blocking | ⏸ defer |
+| 59 | **Day theming** (assign each weekday a theme, warn on violation) | "devoting entire days to types of work… macro batching" | quidlo.com/blog/day-theming | ⏸ defer |
+
+### This round — building #29 (all-day, fixes a bug), #30 (day/weekend views), #31 (search), #32 (notifications), #33 (export)
