@@ -23,6 +23,15 @@ export interface TaskDto {
   notes: string | null;
 }
 
+export interface EventDto {
+  id: string;
+  title: string;
+  start: string; // RFC3339 dateTime, or YYYY-MM-DD for all-day
+  end: string;
+  allDay: boolean;
+  cadenceTaskId: string | null;
+}
+
 export const api = {
   /** Begin Google OAuth (opens the system browser). Resolves when connected. */
   async googleSignIn(): Promise<Account> {
@@ -57,6 +66,12 @@ export const api = {
 
   async createTask(listId: string, title: string, due: string | null): Promise<TaskDto> {
     return invoke<TaskDto>("task_create", { listId, title, due });
+  },
+
+  /** List primary-calendar events in [timeMin, timeMax] (RFC3339). */
+  async listEvents(timeMin: string, timeMax: string): Promise<EventDto[]> {
+    if (!isTauri) return [];
+    return invoke<EventDto[]>("events_list", { timeMin, timeMax });
   },
 };
 

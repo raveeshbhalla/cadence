@@ -15,13 +15,14 @@ OPENAI_API_KEY=...
 
 Create credentials in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
 
-1. **Redirect URI.** Cadence listens on a fixed loopback port and uses
-   redirect `http://127.0.0.1:8765`.
-   - **Web application** client: add `http://127.0.0.1:8765` under
-     **Authorized redirect URIs**. (Without this you get
-     `Error 400: redirect_uri_mismatch`.)
-   - **Desktop app** client: accepts any loopback port, so no registration is
-     needed — either client type works.
+1. **Use a _Desktop app_ OAuth client (recommended).** Create Credentials →
+   OAuth client ID → Application type **Desktop app**. Desktop clients accept
+   the loopback redirect (`http://127.0.0.1:8765`) automatically — nothing to
+   register, and no `redirect_uri_mismatch`. Put its Client ID + secret in the
+   env file.
+   - _Alternative — Web application client:_ you must add **exactly**
+     `http://127.0.0.1:8765` (no trailing slash) under **Authorized redirect
+     URIs**, or Google returns `Error 400: redirect_uri_mismatch`.
 2. **Enable APIs** for the project: Google Calendar API, Google Tasks API, Gmail API.
 3. **OAuth consent screen**
    - User type: External (or Internal if a Workspace org).

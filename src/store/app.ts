@@ -19,10 +19,10 @@ import type { CategoryKey, Density } from "../theme";
 type GridLike = { id: string; start: number; end: number; title: string; cat: CategoryKey };
 import { DEFAULT_ACCENT, pxPerHour } from "../theme";
 import { makeSeed } from "../data/seed";
-import { addDays, defaultWeekMonday, nowMinutes, todayKey, weekdayShort } from "../lib/dates";
+import { addDays, dateKey, defaultWeekMonday, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
-import { api, isTauri, type TaskDto } from "../lib/api";
+import { api, isTauri, type EventDto, type TaskDto } from "../lib/api";
 import { usePointer } from "./pointer";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -91,6 +91,7 @@ export interface AppState {
   toggleCal: (cat: CategoryKey) => void;
 
   loadTasks: () => void;
+  loadCalendar: () => void;
   toggleTask: (id: string) => void;
   captureScheduled: (date: string, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
   placeTask: (taskId: string, date: string, start: number) => void;
@@ -264,7 +265,19 @@ export const useApp = create<AppState>((set, get) => ({
     if (!isTauri) return;
     api
       .listTasks()
-      .then((dtos) => set({ tasks: dtos.map(dtoToTask), events: [] }))
+      .then((dtos) => set({ tasks: dtos.map(dtoToTask) }))
+      .catch(() => {});
+  },
+
+  // Pull meetings for the visible week from Google Calendar (replacing seed).
+  loadCalendar: () => {
+    const s = get();
+    if (!isTauri || !s.account) return;
+    const timeMin = new Date(parseKey(s.viewMonday)).toISOString();
+    const timeMax = new Date(parseKey(addDays(s.viewMonday, 5))).toISOString();
+    api
+      .listEvents(timeMin, timeMax)
+      .then((dtos) => set({ events: dtos.filter((d) => !d.allDay && !d.cadenceTaskId).map(eventDtoToCalEvent) }))
       .catch(() => {});
   },
 
@@ -301,9 +314,18 @@ export const useApp = create<AppState>((set, get) => ({
   setSelCurY: (y) => set((s) => (s.selDrag ? { selDrag: { ...s.selDrag, curY: y } } : {})),
   setInteraction: (partial) => set(partial as Partial<AppState>),
 
-  gotoToday: () => set({ viewMonday: defaultWeekMonday() }),
-  prevWeek: () => set((s) => ({ viewMonday: addDays(s.viewMonday, -7) })),
-  nextWeek: () => set((s) => ({ viewMonday: addDays(s.viewMonday, 7) })),
+  gotoToday: () => {
+    set({ viewMonday: defaultWeekMonday() });
+    get().loadCalendar();
+  },
+  prevWeek: () => {
+    set((s) => ({ viewMonday: addDays(s.viewMonday, -7) }));
+    get().loadCalendar();
+  },
+  nextWeek: () => {
+    set((s) => ({ viewMonday: addDays(s.viewMonday, 7) }));
+    get().loadCalendar();
+  },
   shareAvailability: () => get().setToast("3 open slots copied — paste into any email"),
   setAccent: (a) => set({ accent: a }),
   setAccount: (email) => set({ account: email }),
@@ -314,6 +336,15 @@ function fmtCompleted(iso: string): string {
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return "";
   return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function eventDtoToCalEvent(d: EventDto): CalEvent {
+  const s = new Date(d.start);
+  const e = new Date(d.end);
+  const start = s.getHours() * 60 + s.getMinutes();
+  let end = e.getHours() * 60 + e.getMinutes();
+  if (end <= start) end = start + 30; // crosses midnight / zero-length guard
+  return { id: d.id, date: dateKey(s), start, end, title: d.title || "(no title)", cat: "work" };
 }
 
 function dtoToTask(d: TaskDto): Task {

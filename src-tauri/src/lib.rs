@@ -1,9 +1,11 @@
 mod auth;
+mod calendar;
 mod config;
 mod google;
 mod tasks;
 
 use auth::Account;
+use calendar::EventDto;
 use tasks::TaskDto;
 
 // ── Auth ──────────────────────────────────────────────────────────
@@ -44,6 +46,14 @@ async fn task_create(list_id: String, title: String, due: Option<String>) -> Res
         .map_err(|e| e.to_string())?
 }
 
+// ── Google Calendar ───────────────────────────────────────────────
+#[tauri::command]
+async fn events_list(time_min: String, time_max: String) -> Result<Vec<EventDto>, String> {
+    tauri::async_runtime::spawn_blocking(move || calendar::list(&time_min, &time_max))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     config::init();
@@ -56,6 +66,7 @@ pub fn run() {
             tasks_list,
             task_set_status,
             task_create,
+            events_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

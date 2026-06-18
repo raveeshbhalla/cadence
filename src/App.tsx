@@ -9,6 +9,7 @@ export default function App() {
   const [checked, setChecked] = useState(false);
   const setAccount = useApp((s) => s.setAccount);
   const loadTasks = useApp((s) => s.loadTasks);
+  const loadCalendar = useApp((s) => s.loadCalendar);
 
   // If tokens already exist (a prior sign-in), skip straight into the app.
   useEffect(() => {
@@ -19,10 +20,11 @@ export default function App() {
           setAccount(acct.email);
           setEntered(true);
           loadTasks();
+          loadCalendar();
         }
       })
       .finally(() => setChecked(true));
-  }, [setAccount, loadTasks]);
+  }, [setAccount, loadTasks, loadCalendar]);
 
   if (!checked) return <div style={{ height: "100vh", background: "#0E0F13" }} />;
 
@@ -34,6 +36,7 @@ export default function App() {
         setAccount(email);
         setEntered(true);
         loadTasks();
+        loadCalendar();
       }}
     />
   );
