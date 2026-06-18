@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { C } from "../theme";
 import { fmtTime } from "../lib/format";
+import { diffDays, weekdayShort } from "../lib/dates";
 import { api } from "../lib/api";
 import { useApp } from "../store/app";
 import { usePointerHandlers } from "../store/usePointerHandlers";
@@ -38,21 +39,33 @@ export function MainApp() {
     return () => clearInterval(id);
   }, [tickNow]);
 
-  // Push the next upcoming item today to the macOS menu bar.
+  // Push the next upcoming item (across all days) to the macOS menu bar.
   useEffect(() => {
+    // Absolute minutes relative to "now" so we can sort across days.
+    const mk = (date: string, start: number, end: number, title: string) => {
+      const off = diffDays(date, today) * 1440;
+      return { abs: off + start, absEnd: off + end, start, date, title };
+    };
     const items = [
-      ...events.filter((e) => e.date === today).map((e) => ({ start: e.start, end: e.end, title: e.title })),
-      ...tasks
-        .filter((t) => t.block && t.block.date === today && t.status !== "completed")
-        .map((t) => ({ start: t.block!.start, end: t.block!.end, title: t.title })),
+      ...events.map((e) => mk(e.date, e.start, e.end, e.title)),
+      ...tasks.filter((t) => t.block && t.status !== "completed").map((t) => mk(t.block!.date, t.block!.start, t.block!.end, t.title)),
     ]
-      .filter((it) => it.end > now)
-      .sort((a, b) => a.start - b.start);
+      .filter((it) => it.absEnd > now)
+      .sort((a, b) => a.abs - b.abs);
+
     const n = items[0];
     let label = "";
     if (n) {
-      const t = n.title.length > 22 ? n.title.slice(0, 21) + "…" : n.title;
-      label = n.start <= now ? `▶ ${t}` : `${t} · ${fmtTime(n.start)}`;
+      const title = n.title.length > 40 ? n.title.slice(0, 39) + "…" : n.title;
+      const mins = n.abs - now;
+      const off = diffDays(n.date, today);
+      let rel: string;
+      if (n.abs <= now) rel = "now";
+      else if (mins < 60) rel = `in ${mins}m`;
+      else if (off === 0) rel = `at ${fmtTime(n.start)}`;
+      else if (off === 1) rel = `tomorrow ${fmtTime(n.start)}`;
+      else rel = `${weekdayShort(n.date)} ${fmtTime(n.start)}`;
+      label = `${title} · ${rel}`;
     }
     api.setTrayTitle(label);
   }, [events, tasks, now, today]);
