@@ -12,6 +12,17 @@ export interface Account {
   email: string;
 }
 
+export interface TaskDto {
+  id: string;
+  listId: string;
+  listTitle: string;
+  title: string;
+  status: "needsAction" | "completed";
+  due: string | null; // YYYY-MM-DD
+  completed: string | null; // RFC3339
+  notes: string | null;
+}
+
 export const api = {
   /** Begin Google OAuth (opens the system browser). Resolves when connected. */
   async googleSignIn(): Promise<Account> {
@@ -32,4 +43,20 @@ export const api = {
     if (!isTauri) return;
     return invoke<void>("sign_out");
   },
+
+  /** Read all Google Tasks across the user's lists. */
+  async listTasks(): Promise<TaskDto[]> {
+    if (!isTauri) return [];
+    return invoke<TaskDto[]>("tasks_list");
+  },
+
+  async setTaskStatus(listId: string, id: string, completed: boolean): Promise<void> {
+    if (!isTauri) return;
+    return invoke<void>("task_set_status", { listId, id, completed });
+  },
+
+  async createTask(listId: string, title: string, due: string | null): Promise<TaskDto> {
+    return invoke<TaskDto>("task_create", { listId, title, due });
+  },
 };
+

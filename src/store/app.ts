@@ -20,8 +20,9 @@ type GridLike = { id: string; start: number; end: number; title: string; cat: Ca
 import { DEFAULT_ACCENT, pxPerHour } from "../theme";
 import { makeSeed } from "../data/seed";
 import { addDays, defaultWeekMonday, nowMinutes, todayKey, weekdayShort } from "../lib/dates";
-import { fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
+import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
+import { api, isTauri, type TaskDto } from "../lib/api";
 import { usePointer } from "./pointer";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -89,6 +90,7 @@ export interface AppState {
   toggleEmailSource: () => void;
   toggleCal: (cat: CategoryKey) => void;
 
+  loadTasks: () => void;
   toggleTask: (id: string) => void;
   captureScheduled: (date: string, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
   placeTask: (taskId: string, date: string, start: number) => void;
@@ -209,6 +211,7 @@ export const useApp = create<AppState>((set, get) => ({
         { id, title: p.title, project: p.project || "", cat: p.cat || "work", est: p.est || 30, status: "needsAction", due: p.date, completed: null, source: "gtasks" },
       ]);
       s.commit("Added “" + p.title + "” · " + (p.dayLabel || "Inbox"), { tasks });
+      pushNewTask(id, p.title, p.date);
     }
     s.closeModal();
   },
@@ -225,6 +228,7 @@ export const useApp = create<AppState>((set, get) => ({
       { id, title, project, cat: cat || "work", est: dur, status: "needsAction", due: date, completed: null, source: "gtasks", scheduled: true, block: { date, start, end: start + dur } },
     ]);
     s.commit("Added “" + title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
+    pushNewTask(id, title, date);
   },
 
   // Drag a rail task onto the grid → schedule it (or reschedule if already placed).
@@ -255,7 +259,17 @@ export const useApp = create<AppState>((set, get) => ({
       return { hidden: h };
     }),
 
-  // The single completion path — flips a task's status wherever it's shown.
+  // Pull live Google Tasks (replacing seed). On failure (not signed in) keep seed.
+  loadTasks: () => {
+    if (!isTauri) return;
+    api
+      .listTasks()
+      .then((dtos) => set({ tasks: dtos.map(dtoToTask), events: [] }))
+      .catch(() => {});
+  },
+
+  // The single completion path — flips a task's status wherever it's shown,
+  // and writes the change back to Google Tasks.
   toggleTask: (id) => {
     const s = get();
     const t = s.tasks.find((x) => x.id === id);
@@ -265,6 +279,9 @@ export const useApp = create<AppState>((set, get) => ({
       x.id === id ? ({ ...x, status: completing ? "completed" : "needsAction", completed: completing ? nowLabel(s.now) : null } as Task) : x
     );
     set({ tasks });
+    if (isTauri && s.account && t.source === "gtasks" && t.listId) {
+      api.setTaskStatus(t.listId, id, completing).catch(() => s.setToast("Couldn’t sync to Google Tasks"));
+    }
   },
 
   startTaskDrag: (payload, x, y) => {
@@ -291,6 +308,40 @@ export const useApp = create<AppState>((set, get) => ({
   setAccent: (a) => set({ accent: a }),
   setAccount: (email) => set({ account: email }),
 }));
+
+// ── Google Tasks mapping + write-back helpers ────────────────────
+function fmtCompleted(iso: string): string {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function dtoToTask(d: TaskDto): Task {
+  return {
+    id: d.id,
+    title: d.title,
+    project: d.listTitle,
+    cat: catFromProject(d.listTitle || d.title),
+    est: 30,
+    status: d.status,
+    due: d.due,
+    completed: d.completed ? fmtCompleted(d.completed) : null,
+    source: "gtasks",
+    listId: d.listId,
+  };
+}
+
+/** Create a just-added local task in Google Tasks, then swap in the real id. */
+function pushNewTask(localId: string, title: string, due: string | null) {
+  const s = useApp.getState();
+  if (!isTauri || !s.account) return;
+  api
+    .createTask("@default", title, due)
+    .then((dto) => {
+      useApp.setState((st) => ({ tasks: st.tasks.map((t) => (t.id === localId ? { ...t, id: dto.id, listId: dto.listId } : t)) }));
+    })
+    .catch(() => {});
+}
 
 // Snapshot taken at the start of a resize gesture, restored for undo.
 let opSnap: UndoSnapshot | null = null;

@@ -23,6 +23,8 @@ export interface Task {
   completed: string | null;
   source: TaskSource;
   meta?: string; // email sender meta
+  /** Google Tasks list id this task belongs to (for write-back). */
+  listId?: string;
   /** True when placed on the grid. Mirrors `block != null`. */
   scheduled?: boolean;
   /** The grid slot, when scheduled. A task + block is one shared record. */
