@@ -12,11 +12,13 @@ export function Settings() {
   const density = useApp((s) => s.density);
   const showEmail = useApp((s) => s.showEmail);
   const showWeekends = useApp((s) => s.showWeekends);
+  const sounds = useApp((s) => s.sounds);
   const account = useApp((s) => s.account);
   const setAccent = useApp((s) => s.setAccent);
   const setDensity = useApp((s) => s.setDensity);
   const toggleEmailSource = useApp((s) => s.toggleEmailSource);
   const toggleWeekends = useApp((s) => s.toggleWeekends);
+  const toggleSounds = useApp((s) => s.toggleSounds);
   const signOut = useApp((s) => s.signOut);
   const exportData = useApp((s) => s.exportData);
   const lastSync = useApp((s) => s.lastSync);
@@ -67,6 +69,14 @@ export function Settings() {
             <span style={label}>Show weekends</span>
             <Hoverable onClick={toggleWeekends} style={{ width: 30, height: 18, borderRadius: 20, position: "relative", transition: "background .15s", background: showWeekends ? accent : "#3A3D45", cursor: "pointer" }} hover={{}}>
               <span style={{ position: "absolute", top: 2, left: showWeekends ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
+            </Hoverable>
+          </div>
+
+          {/* sounds */}
+          <div style={row}>
+            <span style={label}>Completion sound</span>
+            <Hoverable onClick={toggleSounds} style={{ width: 30, height: 18, borderRadius: 20, position: "relative", transition: "background .15s", background: sounds ? accent : "#3A3D45", cursor: "pointer" }} hover={{}}>
+              <span style={{ position: "absolute", top: 2, left: sounds ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
             </Hoverable>
           </div>
 

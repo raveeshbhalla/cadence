@@ -27,6 +27,7 @@ import { addDays, dateKey, defaultWeekMonday, diffDays, isoAt, mondayOf, monthSh
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
 import { meetingLink } from "../lib/meeting";
+import { playPop } from "../lib/sound";
 import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
 import { usePointer } from "./pointer";
 
@@ -50,6 +51,7 @@ export interface AppState {
   accent: string;
   density: Density;
   showEmail: boolean;
+  sounds: boolean;
 
   // account
   account: string | null;
@@ -189,6 +191,7 @@ export interface AppState {
   exitTriage: () => void;
   setAccent: (a: string) => void;
   setDensity: (d: Density) => void;
+  toggleSounds: () => void;
   setAccount: (email: string | null) => void;
   signOut: () => void;
   exportData: () => void;
@@ -200,6 +203,7 @@ export const useApp = create<AppState>()(
   accent: DEFAULT_ACCENT,
   density: "cozy",
   showEmail: true,
+  sounds: true,
 
   account: null,
   lastSync: null,
@@ -697,6 +701,7 @@ export const useApp = create<AppState>()(
       x.id === id ? ({ ...x, status: completing ? "completed" : "needsAction", completed: completing ? nowLabel(s.now) : null } as Task) : x
     );
     set({ tasks });
+    if (completing && s.sounds) playPop();
     if (isTauri && s.account) {
       if (t.source === "gtasks" && t.listId) {
         api.setTaskStatus(t.listId, id, completing).catch(() => s.setToast("Couldn’t sync to Google Tasks"));
@@ -794,6 +799,7 @@ export const useApp = create<AppState>()(
 
   setAccent: (a) => set({ accent: a }),
   setDensity: (d) => set({ density: d }),
+  toggleSounds: () => set((s) => ({ sounds: !s.sounds })),
   setAccount: (email) => set({ account: email }),
   signOut: () => {
     const done = () => {
@@ -830,6 +836,7 @@ export const useApp = create<AppState>()(
         accent: s.accent,
         density: s.density,
         showEmail: s.showEmail,
+        sounds: s.sounds,
         sidebarHidden: s.sidebarHidden,
         archivedShown: s.archivedShown,
         hiddenCals: s.hiddenCals,
