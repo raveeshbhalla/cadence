@@ -8,9 +8,12 @@ export function AvailabilityPanel() {
   const accent = useApp((s) => s.accent);
   const slots = useApp((s) => s.availabilitySlots);
   const label = useApp((s) => s.availabilityLabel);
+  const prompt = useApp((s) => s.availabilityPrompt);
   const setLabel = useApp((s) => s.setAvailabilityLabel);
   const remove = useApp((s) => s.removeAvailabilitySlot);
   const copy = useApp((s) => s.copyAvailability);
+  const block = useApp((s) => s.blockAvailability);
+  const dismissPrompt = useApp((s) => s.dismissAvailabilityPrompt);
   const exit = useApp((s) => s.exitAvailability);
 
   return (
@@ -45,6 +48,27 @@ export function AvailabilityPanel() {
           ))
         )}
       </div>
+
+      {prompt !== "idle" && slots.length > 0 && (
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: "10px 14px", background: "rgba(255,255,255,0.035)" }}>
+          {prompt === "copied" && (
+            <>
+              <div style={{ fontSize: 12.5, fontWeight: 650, color: C.text }}>Copied. Block these slots?</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9 }}>
+                <button onClick={block} style={{ background: accent, color: ACCENT_FG, border: "none", borderRadius: 7, padding: "6px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}>
+                  Y
+                </button>
+                <button onClick={dismissPrompt} style={{ background: C.rowHover, color: C.textMute, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  N
+                </button>
+                <span style={{ fontSize: 11.5, color: C.textMute2 }}>yes / no</span>
+              </div>
+            </>
+          )}
+          {prompt === "blocked" && <div style={{ fontSize: 12.5, fontWeight: 650, color: accent }}>Blocked on your calendar.</div>}
+          {prompt === "dismissed" && <div style={{ fontSize: 12.5, color: C.textMute }}>Slots copied. No blocks added.</div>}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, padding: "11px 14px", background: C.modalFooterBg, borderTop: `1px solid ${C.border}` }}>
         <Hoverable as="button" onClick={exit} style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: "pointer" }} hover={{ background: "#222630", color: "#fff" }}>

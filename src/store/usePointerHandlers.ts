@@ -234,6 +234,25 @@ export function usePointerHandlers() {
       if (s.triageMode) return; // Triage handles its own keys
       const k = (e.key || "").toLowerCase();
       const meta = e.metaKey || e.ctrlKey;
+      if (s.availabilityMode) {
+        if (meta && k === "c") {
+          e.preventDefault();
+          s.copyAvailability();
+          return;
+        }
+        if (!meta && !e.altKey && !e.shiftKey && s.availabilityPrompt === "copied") {
+          if (k === "y") {
+            e.preventDefault();
+            s.blockAvailability();
+            return;
+          }
+          if (k === "n") {
+            e.preventDefault();
+            s.dismissAvailabilityPrompt();
+            return;
+          }
+        }
+      }
       if (meta && k === "k") {
         e.preventDefault();
         s.togglePalette();
