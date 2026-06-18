@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
+  AllDayEvent,
   CalendarMeta,
   CalEvent,
   CaptureContext,
@@ -54,6 +55,7 @@ export interface AppState {
 
   // data
   events: CalEvent[];
+  allDayEvents: AllDayEvent[];
   tasks: Task[];
 
   // time
@@ -192,6 +194,7 @@ export const useApp = create<AppState>()(
   account: null,
 
   events: SEED.events,
+  allDayEvents: [],
   tasks: SEED.tasks,
 
   now: nowMinutes(),
@@ -584,9 +587,22 @@ export const useApp = create<AppState>()(
       .listEvents(timeMin, timeMax)
       .then((dtos) => {
         const meetings: CalEvent[] = [];
+        const allDay: AllDayEvent[] = [];
         const blocks = new Map<string, { eventId: string; date: string; start: number; end: number }>();
         for (const d of dtos) {
-          if (d.allDay || d.declined) continue; // hide all-day + declined invites
+          if (d.declined) continue;
+          if (d.allDay) {
+            // Google all-day end date is exclusive; expand to one entry per covered day.
+            const startDate = d.start.slice(0, 10);
+            const endExcl = d.end.slice(0, 10);
+            let cur = startDate;
+            for (let i = 0; i < 60 && cur < endExcl; i++) {
+              allDay.push({ id: d.id + "@" + cur, date: cur, title: d.title, color: d.color, calendarId: d.calendarId });
+              cur = addDays(cur, 1);
+            }
+            if (startDate >= endExcl) allDay.push({ id: d.id + "@" + startDate, date: startDate, title: d.title, color: d.color, calendarId: d.calendarId });
+            continue;
+          }
           if (d.cadenceTaskId) {
             const sd = new Date(d.start);
             const ed = new Date(d.end);
@@ -600,6 +616,7 @@ export const useApp = create<AppState>()(
         }
         set((st) => ({
           events: meetings,
+          allDayEvents: allDay,
           tasks: st.tasks.map((t) => {
             const b = blocks.get(t.id);
             return b ? { ...t, scheduled: true, eventId: b.eventId, block: { date: b.date, start: b.start, end: b.end } } : t;

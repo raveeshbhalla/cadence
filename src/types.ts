@@ -52,6 +52,15 @@ export interface CalEvent {
   hangoutLink?: string;
 }
 
+/** An all-day calendar item (birthday, PTO, deadline), shown in the banner lane. */
+export interface AllDayEvent {
+  id: string;
+  date: string; // local YYYY-MM-DD (one entry per covered day)
+  title: string;
+  color?: string;
+  calendarId?: string;
+}
+
 export interface CalendarMeta {
   id: string;
   summary: string;

@@ -218,6 +218,7 @@ function DayColumn({
 export function Calendar() {
   const accent = useApp((s) => s.accent);
   const events = useApp((s) => s.events);
+  const allDayEvents = useApp((s) => s.allDayEvents);
   const tasks = useApp((s) => s.tasks);
   const hiddenCals = useApp((s) => s.hiddenCals);
   const hiddenLists = useApp((s) => s.hiddenLists);
@@ -289,6 +290,11 @@ export function Calendar() {
   const [monthName, yearStr] = monthLabel(week[2]).split(" ");
   const load = useMemo(() => dayLoad({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
   const conflicts = useMemo(() => perDay.reduce((n, day) => n + day.filter((pi) => pi.item.conflict).length, 0), [perDay]);
+  const allDayByDay = useMemo(
+    () => week.map((date) => allDayEvents.filter((a) => a.date === date && !(a.calendarId && hiddenCals.includes(a.calendarId)))),
+    [week, allDayEvents, hiddenCals]
+  );
+  const hasAllDay = allDayByDay.some((d) => d.length > 0);
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.calendarBg }}>
@@ -353,6 +359,28 @@ export function Calendar() {
           );
         })}
       </div>
+
+      {/* all-day banner lane */}
+      {hasAllDay && (
+        <div style={{ flex: "none", display: "flex", borderBottom: `1px solid ${C.borderSoft}`, background: C.calendarBg, minHeight: 26 }}>
+          <div style={{ width: 56, flex: "none", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8 }}>
+            <span style={{ fontSize: 9.5, color: C.textFaint2, letterSpacing: "0.04em" }}>all-day</span>
+          </div>
+          {allDayByDay.map((items, di) => (
+            <div key={di} style={{ flex: 1, borderLeft: `1px solid ${C.hairline}`, padding: "3px 3px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+              {items.slice(0, 2).map((a) => {
+                const col = a.color || "#5B9BFF";
+                return (
+                  <div key={a.id} title={a.title} style={{ fontSize: 10.5, fontWeight: 500, color: "#EDEEF1", background: hexToRgba(col, 0.2), borderLeft: `2px solid ${col}`, borderRadius: 4, padding: "1px 5px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {a.title}
+                  </div>
+                );
+              })}
+              {items.length > 2 && <span style={{ fontSize: 9.5, color: C.textFaint, paddingLeft: 4 }}>+{items.length - 2} more</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* grid */}
       <div style={{ flex: 1, overflowY: "auto", position: "relative" }}>
