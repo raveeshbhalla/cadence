@@ -22,15 +22,7 @@ pub struct TaskDto {
 /// Read every task across all of the user's task lists.
 pub fn list() -> Result<Vec<TaskDto>, String> {
     let token = google::token()?;
-    let client = google::client();
-
-    let lists: Value = client
-        .get(format!("{BASE}/users/@me/lists"))
-        .bearer_auth(&token)
-        .send()
-        .map_err(|e| e.to_string())?
-        .json()
-        .map_err(|e| e.to_string())?;
+    let lists = google::get_json(&token, &format!("{BASE}/users/@me/lists"))?;
 
     let mut out = Vec::new();
     let empty = vec![];
@@ -41,13 +33,10 @@ pub fn list() -> Result<Vec<TaskDto>, String> {
             continue;
         }
 
-        let tasks: Value = client
-            .get(format!("{BASE}/lists/{list_id}/tasks?showCompleted=true&showHidden=true&maxResults=100"))
-            .bearer_auth(&token)
-            .send()
-            .map_err(|e| e.to_string())?
-            .json()
-            .map_err(|e| e.to_string())?;
+        let tasks = google::get_json(
+            &token,
+            &format!("{BASE}/lists/{list_id}/tasks?showCompleted=true&showHidden=true&maxResults=100"),
+        )?;
 
         for t in tasks["items"].as_array().unwrap_or(&empty) {
             let id = t["id"].as_str().unwrap_or_default().to_string();
@@ -98,6 +87,26 @@ pub fn set_title(list_id: &str, id: &str, title: &str) -> Result<(), String> {
         .patch(format!("{BASE}/lists/{list_id}/tasks/{id}"))
         .bearer_auth(&token)
         .json(&json!({ "title": title }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
+}
+
+/// Set a task's due date (YYYY-MM-DD), or clear it with None.
+pub fn set_due(list_id: &str, id: &str, due: Option<String>) -> Result<(), String> {
+    let token = google::token()?;
+    let body = match due {
+        Some(d) => json!({ "due": format!("{d}T00:00:00.000Z") }),
+        None => json!({ "due": Value::Null }),
+    };
+    let resp = google::client()
+        .patch(format!("{BASE}/lists/{list_id}/tasks/{id}"))
+        .bearer_auth(&token)
+        .json(&body)
         .send()
         .map_err(|e| e.to_string())?;
     if resp.status().is_success() {

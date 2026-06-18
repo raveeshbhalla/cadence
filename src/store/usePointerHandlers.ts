@@ -160,9 +160,11 @@ export function usePointerHandlers() {
             const label = "Moved “" + ed.title + "” to " + weekdayShort(date) + " " + fmtTime(start);
             const t = s.tasks.find((x) => x.id === ed.id && x.block);
             if (t) {
-              const tasks = s.tasks.map((x) => (x.id === ed.id && x.block ? { ...x, block: { date, start, end: start + ed.dur } } : x));
+              // Moving a block also moves the task's due date to that day.
+              const tasks = s.tasks.map((x) => (x.id === ed.id && x.block ? { ...x, due: date, block: { date, start, end: start + ed.dur } } : x));
               s.commit(label, { tasks, eventDrag: null, dropTarget: null });
               useApp.getState().syncBlock(ed.id);
+              useApp.getState().syncTaskDue(ed.id);
             } else {
               const events = s.events.map((x) => (x.id === ed.id ? { ...x, date, start, end: start + ed.dur } : x));
               s.commit(label, { events, eventDrag: null, dropTarget: null });

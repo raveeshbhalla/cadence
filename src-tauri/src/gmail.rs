@@ -20,13 +20,7 @@ pub fn unreplied() -> Result<Vec<EmailDto>, String> {
     let client = google::client();
 
     let q = "in:inbox category:primary -from:me newer_than:30d";
-    let list: Value = client
-        .get(format!("{BASE}/messages?maxResults=15&q={}", urlencode(q)))
-        .bearer_auth(&token)
-        .send()
-        .map_err(|e| e.to_string())?
-        .json()
-        .map_err(|e| e.to_string())?;
+    let list = google::get_json(&token, &format!("{BASE}/messages?maxResults=15&q={}", urlencode(q)))?;
 
     let empty = vec![];
     let mut out = Vec::new();

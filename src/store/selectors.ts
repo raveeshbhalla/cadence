@@ -86,12 +86,12 @@ export function buildRail(s: Pick<AppState, "tasks" | "showEmail" | "now" | "tod
   const sections: RailSection[] = [
     { label: "Overdue", rows: overdue, color: "#E5736B" },
     { label: "Today", rows: buckets.today, color: null },
+    { label: "Email · needs reply", rows: s.showEmail ? emailRows : [], color: null },
     { label: "Inbox", rows: buckets.inbox, color: null },
     { label: "Tomorrow", rows: buckets.tomorrow, color: null },
     { label: "This week", rows: buckets.thisweek, color: null },
     { label: "Next week", rows: buckets.nextweek, color: null },
     { label: "Later", rows: buckets.later, color: null },
-    { label: "Email · needs reply", rows: s.showEmail ? emailRows : [], color: null },
   ].filter((sec) => sec.rows.length > 0);
 
   const archived = s.tasks.filter((t) => t.status === "completed").map((t) => rowFromTask(t, "done", false, today));

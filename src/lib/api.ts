@@ -86,6 +86,10 @@ export const api = {
     return invoke<void>("task_set_title", { listId, id, title });
   },
 
+  async setTaskDue(listId: string, id: string, due: string | null): Promise<void> {
+    return invoke<void>("task_set_due", { listId, id, due });
+  },
+
   async deleteTask(listId: string, id: string): Promise<void> {
     return invoke<void>("task_delete", { listId, id });
   },

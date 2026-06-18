@@ -1,3 +1,5 @@
+use serde_json::Value;
+
 use crate::auth;
 
 /// Shared blocking HTTP client + bearer token for Google REST calls.
@@ -7,6 +9,18 @@ pub fn client() -> reqwest::blocking::Client {
 
 pub fn token() -> Result<String, String> {
     auth::access_token()
+}
+
+/// GET a Google REST endpoint as JSON, surfacing HTTP errors (e.g. a disabled
+/// API or missing scope) instead of silently parsing the error body.
+pub fn get_json(token: &str, url: &str) -> Result<Value, String> {
+    let resp = client().get(url).bearer_auth(token).send().map_err(|e| e.to_string())?;
+    let status = resp.status();
+    let text = resp.text().map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        return Err(format!("HTTP {}: {}", status.as_u16(), text.chars().take(300).collect::<String>()));
+    }
+    serde_json::from_str(&text).map_err(|e| e.to_string())
 }
 
 /// Pull just the date (YYYY-MM-DD) out of an RFC3339 timestamp.

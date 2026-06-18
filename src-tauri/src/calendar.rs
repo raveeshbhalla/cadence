@@ -26,13 +26,7 @@ pub fn list(time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
         urlencode(time_min),
         urlencode(time_max)
     );
-    let resp: Value = google::client()
-        .get(url)
-        .bearer_auth(&token)
-        .send()
-        .map_err(|e| e.to_string())?
-        .json()
-        .map_err(|e| e.to_string())?;
+    let resp = google::get_json(&token, &url)?;
 
     let empty = vec![];
     let mut out = Vec::new();

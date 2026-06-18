@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -46,18 +47,31 @@ fn keyring_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())
 }
 
+/// In-memory cache of the token set. The macOS Keychain re-prompts an unsigned
+/// dev binary on every read, so we read it at most once per launch and serve
+/// every subsequent API call from memory.
+static CACHE: Mutex<Option<StoredTokens>> = Mutex::new(None);
+
 fn load_tokens() -> Option<StoredTokens> {
+    if let Some(t) = CACHE.lock().unwrap().as_ref() {
+        return Some(t.clone());
+    }
     let entry = keyring_entry().ok()?;
     let raw = entry.get_password().ok()?;
-    serde_json::from_str(&raw).ok()
+    let tokens: StoredTokens = serde_json::from_str(&raw).ok()?;
+    *CACHE.lock().unwrap() = Some(tokens.clone());
+    Some(tokens)
 }
 
 fn save_tokens(t: &StoredTokens) -> Result<(), String> {
     let raw = serde_json::to_string(t).map_err(|e| e.to_string())?;
-    keyring_entry()?.set_password(&raw).map_err(|e| e.to_string())
+    keyring_entry()?.set_password(&raw).map_err(|e| e.to_string())?;
+    *CACHE.lock().unwrap() = Some(t.clone());
+    Ok(())
 }
 
 pub fn clear_tokens() -> Result<(), String> {
+    *CACHE.lock().unwrap() = None;
     if let Ok(entry) = keyring_entry() {
         let _ = entry.delete_credential();
     }

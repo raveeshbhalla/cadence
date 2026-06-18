@@ -117,6 +117,8 @@ export interface AppState {
   placeTask: (taskId: string, date: string, start: number) => void;
   /** Push a task's current block to Google Calendar (create or update the event). */
   syncBlock: (taskId: string) => void;
+  /** Push a task's due date to Google Tasks. */
+  syncTaskDue: (taskId: string) => void;
   clearCompleted: () => void;
 
   // drag lifecycle
@@ -290,10 +292,22 @@ export const useApp = create<AppState>()(
     }
     const dur = t.block ? t.block.end - t.block.start : t.est;
     const wasScheduled = !!t.block;
-    const tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, scheduled: true, block: { date, start, end: start + dur } } : x));
+    // Scheduling a task sets its due date to the scheduled day — so an overdue
+    // task dragged forward is no longer overdue, and the rail bucket matches the grid.
+    const tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, scheduled: true, due: date, block: { date, start, end: start + dur } } : x));
     const verb = wasScheduled ? "Rescheduled “" : "Added “";
     s.commit(verb + t.title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
     get().syncBlock(taskId);
+    get().syncTaskDue(taskId);
+  },
+
+  // Push a task's due date to Google Tasks.
+  syncTaskDue: (taskId) => {
+    const s = get();
+    if (!isTauri || !s.account) return;
+    const t = s.tasks.find((x) => x.id === taskId);
+    if (!t || t.source !== "gtasks" || !t.listId || !t.due) return;
+    api.setTaskDue(t.listId, taskId, t.due).catch(() => {});
   },
 
   // Create or update the Google Calendar event backing a task's time block.
@@ -332,8 +346,9 @@ export const useApp = create<AppState>()(
     try {
       const dtos = await api.listTasks();
       set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")] }));
-    } catch {
-      return; // not signed in → keep seed
+    } catch (e) {
+      console.error("loadTasks failed:", e);
+      get().setToast("Couldn’t load Google Tasks — " + shortErr(e));
     }
     get().loadCalendar();
     get().loadEmails();
@@ -370,7 +385,7 @@ export const useApp = create<AppState>()(
         }));
         set((st) => ({ tasks: [...st.tasks.filter((t) => t.source !== "gmail"), ...emails] }));
       })
-      .catch(() => {});
+      .catch((e) => console.error("loadEmails failed:", e));
   },
 
   // Fetch a window of calendar events: plain ones become meetings; Cadence
@@ -406,7 +421,7 @@ export const useApp = create<AppState>()(
           }),
         }));
       })
-      .catch(() => {});
+      .catch((e) => console.error("loadCalendar failed:", e));
   },
 
   openEditor: (id) => set({ editorId: id }),
@@ -521,6 +536,11 @@ function fmtCompleted(iso: string): string {
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return "";
   return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function shortErr(e: unknown): string {
+  const s = typeof e === "string" ? e : (e as { message?: string })?.message ?? String(e);
+  return s.length > 160 ? s.slice(0, 160) + "…" : s;
 }
 
 function dayLabelFor(date: string, today: string): string {
