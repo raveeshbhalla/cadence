@@ -5,7 +5,7 @@ export type TaskStatus = "needsAction" | "completed";
 
 /** A scheduled slot on the grid. When a task carries one, it is a time block. */
 export interface Block {
-  day: number; // 0..4 column index
+  date: string; // local YYYY-MM-DD
   start: number; // minutes from midnight
   end: number;
 }
@@ -17,8 +17,8 @@ export interface Task {
   cat: CategoryKey;
   est: number; // minutes (estimate; default block duration)
   status: TaskStatus;
-  /** Due offset in days from today (the Wednesday). null = inbox. */
-  due: number | null;
+  /** Due date as a local YYYY-MM-DD key. null = inbox. */
+  due: string | null;
   /** Human label set when completed (e.g. "today, 8:42 AM"). */
   completed: string | null;
   source: TaskSource;
@@ -32,7 +32,7 @@ export interface Task {
 /** A meeting — calendar-only, never a task, never has a checkbox. */
 export interface CalEvent {
   id: string;
-  day: number; // 0..4 column index
+  date: string; // local YYYY-MM-DD
   start: number; // minutes from midnight
   end: number;
   title: string;
@@ -46,7 +46,7 @@ export interface CalEvent {
  */
 export interface GridItem {
   id: string;
-  day: number;
+  date: string; // local YYYY-MM-DD
   start: number;
   end: number;
   title: string;
@@ -124,7 +124,7 @@ export type ModalKind = "capture" | "palette" | null;
 
 export interface CaptureContext {
   asBlock: true;
-  di: number;
+  date: string; // local YYYY-MM-DD
   start: number;
   end: number;
 }

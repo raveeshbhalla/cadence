@@ -1,0 +1,68 @@
+import { MON, WD } from "../theme";
+
+// All dates are local "YYYY-MM-DD" keys. Times are minutes from local midnight.
+
+export function dateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function parseKey(k: string): Date {
+  const [y, m, d] = k.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function todayKey(): string {
+  return dateKey(new Date());
+}
+
+/** Minutes since local midnight, right now. */
+export function nowMinutes(): number {
+  const n = new Date();
+  return n.getHours() * 60 + n.getMinutes();
+}
+
+export function addDays(k: string, n: number): string {
+  const d = parseKey(k);
+  d.setDate(d.getDate() + n);
+  return dateKey(d);
+}
+
+/** Whole-day difference a − b (positive when a is later). */
+export function diffDays(a: string, b: string): number {
+  return Math.round((parseKey(a).getTime() - parseKey(b).getTime()) / 86400000);
+}
+
+/** Monday (key) of the week containing `d`. */
+export function mondayOf(d: Date): string {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = (x.getDay() + 6) % 7; // Mon = 0
+  x.setDate(x.getDate() - dow);
+  return dateKey(x);
+}
+
+/** The five Mon–Fri keys of the week starting at `mondayKey`. */
+export function weekDates(mondayKey: string): string[] {
+  return [0, 1, 2, 3, 4].map((i) => addDays(mondayKey, i));
+}
+
+/** Default week to show: current week, or the upcoming Monday on weekends. */
+export function defaultWeekMonday(): string {
+  const t = new Date();
+  const dow = t.getDay(); // 0 Sun .. 6 Sat
+  const m = mondayOf(t);
+  return dow === 0 || dow === 6 ? addDays(m, 7) : m;
+}
+
+export const weekdayShort = (k: string) => WD[parseKey(k).getDay()];
+export const dayOfMonth = (k: string) => parseKey(k).getDate();
+export const monthLabel = (k: string) => `${MON[parseKey(k).getMonth()]} ${parseKey(k).getFullYear()}`;
+export const monthShort = (k: string) => MON[parseKey(k).getMonth()];
+
+/** Resolve a weekday index (0 Sun .. 6 Sat) to the next date on/after `today`. */
+export function nextDow(today: string, dow: number): string {
+  const delta = (dow - parseKey(today).getDay() + 7) % 7;
+  return addDays(today, delta);
+}

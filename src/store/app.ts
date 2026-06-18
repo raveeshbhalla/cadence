@@ -17,19 +17,18 @@ import type { CategoryKey, Density } from "../theme";
 
 /** Minimal shape needed to begin moving a grid item (meeting or task block). */
 type GridLike = { id: string; start: number; end: number; title: string; cat: CategoryKey };
-import { DEFAULT_ACCENT, NOW_MIN, TODAY_INDEX, pxPerHour } from "../theme";
-import { SEED_EVENTS, SEED_TASKS } from "../data/seed";
-import { dayWd, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
+import { DEFAULT_ACCENT, pxPerHour } from "../theme";
+import { makeSeed } from "../data/seed";
+import { addDays, defaultWeekMonday, nowMinutes, todayKey, weekdayShort } from "../lib/dates";
+import { fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
 import { usePointer } from "./pointer";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
-export interface Settings {
-  accent: string;
-  density: Density;
-  showEmail: boolean;
-}
+const INITIAL_MONDAY = defaultWeekMonday();
+const INITIAL_TODAY = todayKey();
+const SEED = makeSeed(INITIAL_MONDAY, INITIAL_TODAY);
 
 export interface AppState {
   // settings
@@ -43,7 +42,11 @@ export interface AppState {
   // data
   events: CalEvent[];
   tasks: Task[];
-  now: number;
+
+  // time
+  now: number; // minutes from local midnight
+  today: string; // YYYY-MM-DD
+  viewMonday: string; // Monday of the displayed week
 
   // chrome
   sidebarHidden: boolean;
@@ -71,6 +74,7 @@ export interface AppState {
   setToast: (msg: string) => void;
   commit: (label: string, partial: Partial<AppState>, snap?: UndoSnapshot) => void;
   undo: () => void;
+  tickNow: () => void;
 
   openCapture: () => void;
   openPalette: () => void;
@@ -86,8 +90,8 @@ export interface AppState {
   toggleCal: (cat: CategoryKey) => void;
 
   toggleTask: (id: string) => void;
-  captureScheduled: (di: number, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
-  placeTask: (taskId: string, di: number, start: number) => void;
+  captureScheduled: (date: string, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
+  placeTask: (taskId: string, date: string, start: number) => void;
   clearCompleted: () => void;
 
   // drag lifecycle
@@ -98,7 +102,7 @@ export interface AppState {
   setSelCurY: (y: number) => void;
   setInteraction: (partial: Partial<AppState>) => void;
 
-  // demo stubs
+  // navigation
   gotoToday: () => void;
   prevWeek: () => void;
   nextWeek: () => void;
@@ -114,9 +118,12 @@ export const useApp = create<AppState>((set, get) => ({
 
   account: null,
 
-  events: SEED_EVENTS,
-  tasks: SEED_TASKS,
-  now: NOW_MIN,
+  events: SEED.events,
+  tasks: SEED.tasks,
+
+  now: nowMinutes(),
+  today: INITIAL_TODAY,
+  viewMonday: INITIAL_MONDAY,
 
   sidebarHidden: false,
   archivedShown: false,
@@ -158,6 +165,13 @@ export const useApp = create<AppState>((set, get) => ({
     toastTimer = setTimeout(() => set({ toast: null }), 1800);
   },
 
+  tickNow: () => {
+    const now = nowMinutes();
+    const today = todayKey();
+    const s = get();
+    if (now !== s.now || today !== s.today) set({ now, today });
+  },
+
   openCapture: () => set({ modal: "capture", captureText: "", captureContext: null }),
   openPalette: () => set({ modal: "palette", paletteQuery: "" }),
   closeModal: () => set({ modal: null, captureContext: null }),
@@ -168,9 +182,9 @@ export const useApp = create<AppState>((set, get) => ({
   confirmCapture: () => {
     const s = get();
     const ctx = s.captureContext;
-    const p = parseCapture(s.captureText);
+    const p = parseCapture(s.captureText, s.today);
     if (ctx && ctx.asBlock) {
-      s.captureScheduled(ctx.di, ctx.start, ctx.end - ctx.start, p.title || "Focus block", p.cat || "work", p.project || "");
+      s.captureScheduled(ctx.date, ctx.start, ctx.end - ctx.start, p.title || "Focus block", p.cat || "work", p.project || "");
       s.closeModal();
       return;
     }
@@ -178,22 +192,21 @@ export const useApp = create<AppState>((set, get) => ({
       s.closeModal();
       return;
     }
-    if (p.dayIdx != null && p.dayIdx < TODAY_INDEX) {
+    if (p.date && p.date < s.today) {
       s.setToast("Can’t add to a past day");
       return;
     }
     if (p.time != null) {
-      const di = p.dayIdx != null ? p.dayIdx : TODAY_INDEX;
-      if (isPast(di, p.time, s.now)) {
+      const date = p.date || s.today;
+      if (isPast(date, p.time, s.today, s.now)) {
         s.setToast("Can’t schedule in the past");
         return;
       }
-      s.captureScheduled(di, p.time, p.est || 30, p.title, p.cat || "work", p.project || "");
+      s.captureScheduled(date, p.time, p.est || 30, p.title, p.cat || "work", p.project || "");
     } else {
-      const due = p.dayIdx != null ? p.dayIdx - TODAY_INDEX : null;
       const id = "n" + Date.now();
       const tasks = s.tasks.concat([
-        { id, title: p.title, project: p.project || "", cat: p.cat || "work", est: p.est || 30, status: "needsAction", due, completed: null, source: "gtasks" },
+        { id, title: p.title, project: p.project || "", cat: p.cat || "work", est: p.est || 30, status: "needsAction", due: p.date, completed: null, source: "gtasks" },
       ]);
       s.commit("Added “" + p.title + "” · " + (p.dayLabel || "Inbox"), { tasks });
     }
@@ -201,33 +214,33 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   // Capture → a brand-new scheduled task (one shared record on grid + rail).
-  captureScheduled: (di, start, dur, title, cat, project) => {
+  captureScheduled: (date, start, dur, title, cat, project) => {
     const s = get();
-    if (isPast(di, start, s.now)) {
+    if (isPast(date, start, s.today, s.now)) {
       s.setToast("Can’t schedule in the past");
       return;
     }
     const id = "n" + Date.now() + Math.floor(Math.random() * 99);
     const tasks = s.tasks.concat([
-      { id, title, project, cat: cat || "work", est: dur, status: "needsAction", due: di - TODAY_INDEX, completed: null, source: "gtasks", scheduled: true, block: { day: di, start, end: start + dur } },
+      { id, title, project, cat: cat || "work", est: dur, status: "needsAction", due: date, completed: null, source: "gtasks", scheduled: true, block: { date, start, end: start + dur } },
     ]);
-    s.commit("Added “" + title + "” · " + dayWd(di) + " " + fmtTime(start), { tasks });
+    s.commit("Added “" + title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
   },
 
   // Drag a rail task onto the grid → schedule it (or reschedule if already placed).
-  placeTask: (taskId, di, start) => {
+  placeTask: (taskId, date, start) => {
     const s = get();
     const t = s.tasks.find((x) => x.id === taskId);
     if (!t) return;
-    if (isPast(di, start, s.now)) {
+    if (isPast(date, start, s.today, s.now)) {
       s.setToast("Can’t schedule in the past");
       return;
     }
     const dur = t.block ? t.block.end - t.block.start : t.est;
     const wasScheduled = !!t.block;
-    const tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, scheduled: true, block: { day: di, start, end: start + dur } } : x));
+    const tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, scheduled: true, block: { date, start, end: start + dur } } : x));
     const verb = wasScheduled ? "Rescheduled “" : "Added “";
-    s.commit(verb + t.title + "” · " + dayWd(di) + " " + fmtTime(start), { tasks });
+    s.commit(verb + t.title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
   },
 
   clearCompleted: () => set((s) => ({ tasks: s.tasks.filter((t) => t.status !== "completed") })),
@@ -243,7 +256,6 @@ export const useApp = create<AppState>((set, get) => ({
     }),
 
   // The single completion path — flips a task's status wherever it's shown.
-  // The grid block (if any) re-renders done/dimmed straight from the status.
   toggleTask: (id) => {
     const s = get();
     const t = s.tasks.find((x) => x.id === id);
@@ -272,9 +284,9 @@ export const useApp = create<AppState>((set, get) => ({
   setSelCurY: (y) => set((s) => (s.selDrag ? { selDrag: { ...s.selDrag, curY: y } } : {})),
   setInteraction: (partial) => set(partial as Partial<AppState>),
 
-  gotoToday: () => get().setToast("Showing this week"),
-  prevWeek: () => get().setToast("Previous week (demo week is fixed)"),
-  nextWeek: () => get().setToast("Next week (demo week is fixed)"),
+  gotoToday: () => set({ viewMonday: defaultWeekMonday() }),
+  prevWeek: () => set((s) => ({ viewMonday: addDays(s.viewMonday, -7) })),
+  nextWeek: () => set((s) => ({ viewMonday: addDays(s.viewMonday, 7) })),
   shareAvailability: () => get().setToast("3 open slots copied — paste into any email"),
   setAccent: (a) => set({ accent: a }),
   setAccount: (email) => set({ account: email }),

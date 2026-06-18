@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { C } from "../theme";
 import { useApp } from "../store/app";
 import { usePointerHandlers } from "../store/usePointerHandlers";
@@ -14,6 +15,13 @@ export function MainApp() {
   usePointerHandlers();
   const sidebarHidden = useApp((s) => s.sidebarHidden);
   const modal = useApp((s) => s.modal);
+  const tickNow = useApp((s) => s.tickNow);
+
+  // Keep the now-line and date buckets current.
+  useEffect(() => {
+    const id = setInterval(tickNow, 20000);
+    return () => clearInterval(id);
+  }, [tickNow]);
 
   return (
     <div className="no-select" style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.windowBg, overflow: "hidden" }}>

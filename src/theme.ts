@@ -76,18 +76,8 @@ export const PX_PER_HOUR_COMPACT = 44;
 export type Density = "cozy" | "compact";
 export const pxPerHour = (d: Density) => (d === "compact" ? PX_PER_HOUR_COMPACT : PX_PER_HOUR_COZY);
 
-// ── Fixed demo week (Mon Jun 15 – Fri Jun 19, 2026) ──────────────
-export const TODAY_INDEX = 2; // Wednesday
-export const WEEK_INDEX = 2;
-export const NOW_MIN = 9 * 60 + 10; // 9:10 AM
-
-export const DAYS = [
-  { wd: "Mon", dom: 15 },
-  { wd: "Tue", dom: 16 },
-  { wd: "Wed", dom: 17 },
-  { wd: "Thu", dom: 18 },
-  { wd: "Fri", dom: 19 },
-] as const;
+/** Work week is Monday–Friday (5 columns). */
+export const WEEK_LEN = 5;
 
 export const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

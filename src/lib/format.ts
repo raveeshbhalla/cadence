@@ -1,5 +1,6 @@
-import { END_HOUR, MON, START_HOUR, TODAY_INDEX, WD, WEEK_INDEX, DAYS } from "../theme";
+import { END_HOUR, START_HOUR } from "../theme";
 import type { CategoryKey } from "../theme";
+import { addDays, diffDays, monthShort, mondayOf, parseKey, weekdayShort } from "./dates";
 
 export function fmtTime(m: number): string {
   const h = Math.floor(m / 60);
@@ -28,10 +29,6 @@ export function catFromProject(p: string): CategoryKey {
   return "work";
 }
 
-export function dateForOffset(o: number): Date {
-  return new Date(2026, 5, 17 + o);
-}
-
 export type BucketKey =
   | "inbox"
   | "overdue"
@@ -43,23 +40,26 @@ export type BucketKey =
   | "email"
   | "done";
 
-export function bucketKey(due: number | null): BucketKey {
+/** Bucket a due date (YYYY-MM-DD) relative to today. */
+export function bucketKey(due: string | null, today: string): BucketKey {
   if (due == null) return "inbox";
-  if (due < 0) return "overdue";
-  if (due === 0) return "today";
-  if (due === 1) return "tomorrow";
-  if (due <= 6 - WEEK_INDEX) return "thisweek";
-  if (due <= 6 - WEEK_INDEX + 7) return "nextweek";
+  const d = diffDays(due, today);
+  if (d < 0) return "overdue";
+  if (d === 0) return "today";
+  if (d === 1) return "tomorrow";
+  const sundayThisWeek = addDays(mondayOf(parseKey(today)), 6);
+  if (due <= sundayThisWeek) return "thisweek";
+  const sundayNextWeek = addDays(sundayThisWeek, 7);
+  if (due <= sundayNextWeek) return "nextweek";
   return "later";
 }
 
-export function chipLabelFor(key: BucketKey, due: number | null): string {
+export function chipLabelFor(key: BucketKey, due: string | null): string {
   if (key === "tomorrow") return "Tomorrow";
   if (due == null) return "";
-  const d = dateForOffset(due);
-  if (key === "thisweek") return WD[d.getDay()];
-  if (key === "nextweek") return WD[d.getDay()] + " " + d.getDate();
-  if (key === "later") return MON[d.getMonth()] + " " + d.getDate();
+  if (key === "thisweek") return weekdayShort(due);
+  if (key === "nextweek") return weekdayShort(due) + " " + parseKey(due).getDate();
+  if (key === "later") return monthShort(due) + " " + parseKey(due).getDate();
   return "";
 }
 
@@ -72,15 +72,16 @@ export function nowLabel(now: number): string {
   return "today, " + fmtTime(now);
 }
 
+// ── Past / now detection (date-key based) ────────────────────────
+export function isPast(date: string, start: number, today: string, nowMin: number): boolean {
+  return date < today || (date === today && start < nowMin);
+}
+
+export function isPastEvent(date: string, end: number, today: string, nowMin: number): boolean {
+  return date < today || (date === today && end <= nowMin);
+}
+
 // ── Grid coordinate helpers ──────────────────────────────────────
-export function isPast(di: number, start: number, now: number): boolean {
-  return di < TODAY_INDEX || (di === TODAY_INDEX && start < now);
-}
-
-export function isPastEvent(day: number, end: number, now: number): boolean {
-  return day < TODAY_INDEX || (day === TODAY_INDEX && end <= now);
-}
-
 /** Pixel y → snapped minutes (unclamped). */
 export function yToMinRaw(clientY: number, top: number, px: number): number {
   const min = START_HOUR * 60 + ((clientY - top) / px) * 60;
@@ -92,5 +93,3 @@ export function yToMin(clientY: number, top: number, px: number): number {
   const min = yToMinRaw(clientY, top, px);
   return Math.max(START_HOUR * 60, Math.min(END_HOUR * 60 - 15, min));
 }
-
-export const dayWd = (di: number) => DAYS[di]?.wd ?? "";

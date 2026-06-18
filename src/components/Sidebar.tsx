@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ACCENT_FG, C, CATS } from "../theme";
 import type { CategoryKey } from "../theme";
 import { useApp } from "../store/app";
+import { dateKey, monthLabel, parseKey, weekDates } from "../lib/dates";
 import { Hoverable } from "./Hoverable";
 import { CheckList, ChevronLeft, ChevronRight, Mail, Plus } from "./Icon";
 
@@ -30,26 +31,38 @@ export function Sidebar() {
   const openCapture = useApp((s) => s.openCapture);
   const prev = useApp((s) => s.prevWeek);
   const next = useApp((s) => s.nextWeek);
+  const today = useApp((s) => s.today);
+  const viewMonday = useApp((s) => s.viewMonday);
 
-  const miniCells = useMemo(() => {
-    const cells: { n: number; style: React.CSSProperties }[] = [];
-    for (let d = 1; d <= 30; d++) {
-      const isT = d === 17;
-      const inw = d >= 15 && d <= 21;
+  // Mini-month for the month containing the visible week, with today + the
+  // visible Mon–Fri shaded.
+  const { miniCells, miniMonthLabel } = useMemo(() => {
+    const week = new Set(weekDates(viewMonday));
+    const anchor = parseKey(weekDates(viewMonday)[2]); // Wednesday of the view week
+    const y = anchor.getFullYear();
+    const mo = anchor.getMonth();
+    const firstDow = (new Date(y, mo, 1).getDay() + 6) % 7; // Mon = 0
+    const dim = new Date(y, mo + 1, 0).getDate();
+
+    const cells: { n: number | null; key: number; style: React.CSSProperties }[] = [];
+    for (let i = 0; i < firstDow; i++) cells.push({ n: null, key: -i - 1, style: {} });
+    for (let d = 1; d <= dim; d++) {
+      const key = dateKey(new Date(y, mo, d));
+      const isToday = key === today;
+      const inWeek = week.has(key);
       const style: React.CSSProperties = { fontSize: 11, textAlign: "center", padding: "4px 0", borderRadius: 6 };
-      if (isT) {
+      if (isToday) {
         style.background = accent;
         style.color = ACCENT_FG;
         style.fontWeight = 700;
-      } else if (inw) {
+      } else if (inWeek) {
         style.background = "rgba(255,255,255,0.05)";
         style.color = C.text3;
       } else style.color = C.textMute;
-      cells.push({ n: d, style });
+      cells.push({ n: d, key: d, style });
     }
-    for (let d = 1; d <= 5; d++) cells.push({ n: d, style: { fontSize: 11, textAlign: "center", padding: "4px 0", color: "#3A3D45" } });
-    return cells;
-  }, [accent]);
+    return { miniCells: cells, miniMonthLabel: monthLabel(weekDates(viewMonday)[2]) };
+  }, [accent, today, viewMonday]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -66,7 +79,7 @@ export function Sidebar() {
     <div style={{ width: 236, flex: "none", background: C.sidebarBg, borderRight: `1px solid ${C.borderSoft}`, display: "flex", flexDirection: "column", padding: "16px 14px", overflowY: "auto" }}>
       {/* mini month */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: C.text3 }}>June 2026</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.text3 }}>{miniMonthLabel}</span>
         <div style={{ display: "flex", gap: 2 }}>
           <Hoverable as="button" onClick={prev} style={{ background: "none", border: "none", color: C.textMute3, cursor: "pointer", padding: 2 }} hover={{ color: "#fff" }}>
             <ChevronLeft />
@@ -82,8 +95,8 @@ export function Sidebar() {
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1 }}>
-        {miniCells.map((c, i) => (
-          <span key={i} style={c.style}>{c.n}</span>
+        {miniCells.map((c) => (
+          <span key={c.key} style={c.style}>{c.n}</span>
         ))}
       </div>
 

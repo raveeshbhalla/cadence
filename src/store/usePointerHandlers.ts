@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { END_HOUR, START_HOUR, pxPerHour } from "../theme";
-import { dayWd, fmtDur, fmtTime, isPast, yToMin, yToMinRaw } from "../lib/format";
+import { fmtDur, fmtTime, isPast, yToMin, yToMinRaw } from "../lib/format";
+import { weekDates, weekdayShort } from "../lib/dates";
 import type { AppState } from "./app";
 import type { DropTarget } from "../types";
 import { clearOpSnap, getOpSnap, useApp } from "./app";
@@ -49,6 +50,7 @@ export function usePointerHandlers() {
     const onMove = (e: PointerEvent) => {
       const s = useApp.getState();
       const px = pxPerHour(s.density);
+      const week = weekDates(s.viewMonday);
 
       // ── resize (task block or meeting) ──
       const rz = s.resize;
@@ -58,7 +60,7 @@ export function usePointerHandlers() {
         if (t && t.block) {
           const nb = resizeSlot(t.block, rz.edge, m);
           if (nb.start !== t.block.start || nb.end !== t.block.end) {
-            const tasks = s.tasks.map((x) => (x.id === rz.id && x.block ? { ...x, block: { day: x.block.day, ...nb } } : x));
+            const tasks = s.tasks.map((x) => (x.id === rz.id && x.block ? { ...x, block: { date: x.block.date, ...nb } } : x));
             s.setInteraction({ tasks });
           }
         } else {
@@ -82,11 +84,11 @@ export function usePointerHandlers() {
         let target: DropTarget | null = null;
         if (active) {
           const c = colAt(e.clientX, e.clientY);
-          if (c) {
+          if (c && week[c.di]) {
             let st = yToMinRaw(e.clientY, c.top, px) - ed.grab;
             st = Math.round(st / 15) * 15;
             st = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60 - ed.dur, st));
-            target = { di: c.di, start: st, dur: ed.dur, cat: ed.cat, valid: !isPast(c.di, st, s.now) };
+            target = { di: c.di, start: st, dur: ed.dur, cat: ed.cat, valid: !isPast(week[c.di], st, s.today, s.now) };
           }
         }
         const patch: Partial<AppState> = {};
@@ -104,9 +106,9 @@ export function usePointerHandlers() {
         let target: DropTarget | null = null;
         if (active) {
           const c = colAt(e.clientX, e.clientY);
-          if (c) {
+          if (c && week[c.di]) {
             const st = yToMin(e.clientY, c.top, px);
-            target = { di: c.di, start: st, dur: d.payload.est, cat: d.payload.cat, valid: !isPast(c.di, st, s.now) };
+            target = { di: c.di, start: st, dur: d.payload.est, cat: d.payload.cat, valid: !isPast(week[c.di], st, s.today, s.now) };
           }
         }
         const patch: Partial<AppState> = {};
@@ -123,6 +125,7 @@ export function usePointerHandlers() {
     const onUp = (e: PointerEvent) => {
       const s = useApp.getState();
       const px = pxPerHour(s.density);
+      const week = weekDates(s.viewMonday);
 
       // resize commit
       if (s.resize) {
@@ -143,22 +146,23 @@ export function usePointerHandlers() {
       if (ed) {
         if (ed.active) {
           const c = colAt(e.clientX, e.clientY);
-          if (c) {
+          if (c && week[c.di]) {
+            const date = week[c.di];
             let start = yToMinRaw(e.clientY, c.top, px) - ed.grab;
             start = Math.round(start / 15) * 15;
             start = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60 - ed.dur, start));
-            if (isPast(c.di, start, s.now)) {
+            if (isPast(date, start, s.today, s.now)) {
               s.setInteraction({ eventDrag: null, dropTarget: null });
               s.setToast("Can’t move to the past");
               return;
             }
-            const label = "Moved “" + ed.title + "” to " + dayWd(c.di) + " " + fmtTime(start);
+            const label = "Moved “" + ed.title + "” to " + weekdayShort(date) + " " + fmtTime(start);
             const t = s.tasks.find((x) => x.id === ed.id && x.block);
             if (t) {
-              const tasks = s.tasks.map((x) => (x.id === ed.id && x.block ? { ...x, block: { day: c.di, start, end: start + ed.dur } } : x));
+              const tasks = s.tasks.map((x) => (x.id === ed.id && x.block ? { ...x, block: { date, start, end: start + ed.dur } } : x));
               s.commit(label, { tasks, eventDrag: null, dropTarget: null });
             } else {
-              const events = s.events.map((x) => (x.id === ed.id ? { ...x, day: c.di, start, end: start + ed.dur } : x));
+              const events = s.events.map((x) => (x.id === ed.id ? { ...x, date, start, end: start + ed.dur } : x));
               s.commit(label, { events, eventDrag: null, dropTarget: null });
             }
             return;
@@ -173,10 +177,10 @@ export function usePointerHandlers() {
       if (d) {
         if (d.active) {
           const c = colAt(e.clientX, e.clientY);
-          if (c) {
+          if (c && week[c.di]) {
             const start = yToMin(e.clientY, c.top, px);
             s.setInteraction({ drag: null, dropTarget: null });
-            s.placeTask(d.payload.id, c.di, start);
+            s.placeTask(d.payload.id, week[c.di], start);
             return;
           }
         }
@@ -187,15 +191,16 @@ export function usePointerHandlers() {
       // drag-select → open capture pre-filled
       const sel = s.selDrag;
       if (sel) {
-        if (Math.abs(sel.curY - sel.y0) > 6) {
+        if (Math.abs(sel.curY - sel.y0) > 6 && week[sel.di]) {
+          const date = week[sel.di];
           const a = yToMin(Math.min(sel.y0, sel.curY), sel.rectTop, px);
           let b = yToMin(Math.max(sel.y0, sel.curY), sel.rectTop, px);
           if (b - a < 15) b = a + 30;
-          if (isPast(sel.di, a, s.now)) {
+          if (isPast(date, a, s.today, s.now)) {
             s.setInteraction({ selDrag: null });
             s.setToast("Can’t schedule in the past");
           } else {
-            s.setInteraction({ selDrag: null, modal: "capture", captureText: "", captureContext: { asBlock: true, di: sel.di, start: a, end: b } });
+            s.setInteraction({ selDrag: null, modal: "capture", captureText: "", captureContext: { asBlock: true, date, start: a, end: b } });
           }
         } else {
           s.setInteraction({ selDrag: null });

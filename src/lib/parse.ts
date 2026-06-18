@@ -1,6 +1,6 @@
-import { DAYS, TODAY_INDEX } from "../theme";
 import type { CategoryKey } from "../theme";
 import { catFromProject } from "./format";
+import { addDays, nextDow, weekdayShort } from "./dates";
 
 export interface ParsedCapture {
   title: string;
@@ -8,29 +8,32 @@ export interface ParsedCapture {
   cat: CategoryKey | null;
   est: number | null;
   time: number | null; // minutes from midnight
-  dayIdx: number | null; // 0..4
+  date: string | null; // resolved YYYY-MM-DD
   dayLabel: string | null;
 }
 
-const DAY_MAP: Record<string, number> = {
-  mon: 0, monday: 0,
-  tue: 1, tues: 1, tuesday: 1,
-  wed: 2, weds: 2, wednesday: 2,
-  thu: 3, thur: 3, thurs: 3, thursday: 3,
-  fri: 4, friday: 4,
+// weekday name → JS getDay() index (0 Sun .. 6 Sat)
+const DOW_MAP: Record<string, number> = {
+  sun: 0, sunday: 0,
+  mon: 1, monday: 1,
+  tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3,
+  thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5,
+  sat: 6, saturday: 6,
 };
 
 /**
- * Parse a natural-language capture string into structured chips.
- * Mirrors the prototype's parseCapture (framed as gpt-5.4-nano).
+ * Parse a natural-language capture string into structured chips, resolving
+ * dates relative to `today`. Mirrors the prototype's parser (framed as gpt-5.4-nano).
  */
-export function parseCapture(text: string): ParsedCapture {
+export function parseCapture(text: string, today: string): ParsedCapture {
   let t = " " + (text || "") + " ";
   let project: string | null = null;
   let cat: CategoryKey | null = null;
   let est: number | null = null;
   let time: number | null = null;
-  let dayIdx: number | null = null;
+  let date: string | null = null;
   let dayLabel: string | null = null;
   let m: RegExpMatchArray | null;
 
@@ -60,25 +63,24 @@ export function parseCapture(text: string): ParsedCapture {
   }
 
   if (/\btoday\b/i.test(t)) {
-    dayIdx = TODAY_INDEX;
+    date = today;
     dayLabel = "Today";
     t = t.replace(/\btoday\b/i, " ");
   } else if (/\btomorrow\b/i.test(t)) {
-    dayIdx = TODAY_INDEX + 1;
+    date = addDays(today, 1);
     dayLabel = "Tomorrow";
     t = t.replace(/\btomorrow\b/i, " ");
   } else {
-    for (const key in DAY_MAP) {
+    for (const key in DOW_MAP) {
       const re = new RegExp("\\b" + key + "\\b", "i");
       if (re.test(t)) {
-        dayIdx = DAY_MAP[key];
-        dayLabel = DAYS[dayIdx] ? DAYS[dayIdx].wd : key;
+        date = nextDow(today, DOW_MAP[key]);
+        dayLabel = weekdayShort(date);
         t = t.replace(re, " ");
         break;
       }
     }
   }
-  if (dayIdx != null && (dayIdx < 0 || dayIdx > 4)) dayIdx = null;
 
   let title = t
     .replace(/\s+/g, " ")
@@ -88,5 +90,5 @@ export function parseCapture(text: string): ParsedCapture {
     .trim();
   if (title) title = title.charAt(0).toUpperCase() + title.slice(1);
 
-  return { title, project, cat, est, time, dayIdx, dayLabel };
+  return { title, project, cat, est, time, date, dayLabel };
 }

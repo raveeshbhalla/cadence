@@ -1,7 +1,8 @@
 import { useMemo, type PointerEvent } from "react";
-import { ACCENT_FG, C, CATS, DAYS, END_HOUR, START_HOUR, TODAY_INDEX, pxPerHour } from "../theme";
+import { ACCENT_FG, C, CATS, END_HOUR, START_HOUR, pxPerHour } from "../theme";
 import type { DropTarget, GridItem, SelDragState } from "../types";
 import { fmtTime } from "../lib/format";
+import { dayOfMonth, monthLabel, weekDates, weekdayShort } from "../lib/dates";
 import { pack } from "../lib/pack";
 import { useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
@@ -70,19 +71,7 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
               e.stopPropagation();
               toggleTask(item.id);
             }}
-            style={{
-              width: 13,
-              height: 13,
-              border: "1.5px solid currentColor",
-              borderRadius: 4,
-              flex: "none",
-              marginTop: 1,
-              opacity: 0.65,
-              cursor: "pointer",
-              position: "relative",
-              zIndex: 6,
-              background: item.done ? "currentColor" : "transparent",
-            }}
+            style={{ width: 13, height: 13, border: "1.5px solid currentColor", borderRadius: 4, flex: "none", marginTop: 1, opacity: 0.65, cursor: "pointer", position: "relative", zIndex: 6, background: item.done ? "currentColor" : "transparent" }}
           />
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -97,27 +86,27 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
 function DayColumn({
   di,
   positioned,
-  px,
-  now,
   accent,
   dragging,
   ghost,
   sel,
+  isToday,
+  nowTop,
+  maskH,
+  px,
 }: {
   di: number;
   positioned: PositionedItem[];
-  px: number;
-  now: number;
   accent: string;
   dragging: boolean;
   ghost: DropTarget | null;
   sel: SelDragState | null;
+  isToday: boolean;
+  nowTop: number;
+  maskH: number;
+  px: number;
 }) {
   const startSelDrag = useApp((s) => s.startSelDrag);
-  const isToday = di === TODAY_INDEX;
-  const nowTop = (now / 60 - START_HOUR) * px;
-  const maskH = di < TODAY_INDEX ? (END_HOUR - START_HOUR) * px : isToday ? Math.max(0, nowTop) : 0;
-
   const onDown = (e: PointerEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     startSelDrag(di, e.clientY, r.top);
@@ -189,6 +178,8 @@ export function Calendar() {
   const hidden = useApp((s) => s.hidden);
   const density = useApp((s) => s.density);
   const now = useApp((s) => s.now);
+  const today = useApp((s) => s.today);
+  const viewMonday = useApp((s) => s.viewMonday);
   const dropTarget = useApp((s) => s.dropTarget);
   const selDrag = useApp((s) => s.selDrag);
   const dragActive = useApp((s) => !!(s.drag && s.drag.active));
@@ -199,6 +190,9 @@ export function Calendar() {
 
   const px = pxPerHour(density);
   const dragging = dragActive || eventDragActive;
+  const week = useMemo(() => weekDates(viewMonday), [viewMonday]);
+  const gridHeight = (END_HOUR - START_HOUR) * px;
+  const nowTop = (now / 60 - START_HOUR) * px;
 
   const hours = useMemo(() => {
     const arr: { label: string; topPx: number; labelTop: number }[] = [];
@@ -209,16 +203,16 @@ export function Calendar() {
   // Unified grid items: meetings + scheduled tasks (one record each).
   const perDay = useMemo(() => {
     const items: GridItem[] = [
-      ...events.map((e) => ({ id: e.id, day: e.day, start: e.start, end: e.end, title: e.title, cat: e.cat, checkable: false, done: false })),
+      ...events.map((e) => ({ id: e.id, date: e.date, start: e.start, end: e.end, title: e.title, cat: e.cat, checkable: false, done: false })),
       ...tasks
         .filter((t) => t.block)
-        .map((t) => ({ id: t.id, day: t.block!.day, start: t.block!.start, end: t.block!.end, title: t.title, cat: t.cat, checkable: true, done: t.status === "completed" })),
+        .map((t) => ({ id: t.id, date: t.block!.date, start: t.block!.start, end: t.block!.end, title: t.title, cat: t.cat, checkable: true, done: t.status === "completed" })),
     ].filter((it) => !hidden.has(it.cat));
 
-    return DAYS.map((_, di) => {
-      const dayItems = items.filter((it) => it.day === di);
+    return week.map((date) => {
+      const dayItems = items.filter((it) => it.date === date);
       const pk = pack(dayItems);
-      const positioned: PositionedItem[] = dayItems.map((item) => {
+      return dayItems.map((item) => {
         const pos = pk[item.id] || { col: 0, cols: 1 };
         return {
           item,
@@ -226,17 +220,16 @@ export function Calendar() {
           height: Math.max(((item.end - item.start) / 60) * px, 18),
           left: `calc(${(pos.col * 100) / pos.cols}% + 2px)`,
           width: `calc(${100 / pos.cols}% - 5px)`,
-        };
+        } as PositionedItem;
       });
-      return positioned;
     });
-  }, [events, tasks, hidden, px]);
-
-  const gridHeight = (END_HOUR - START_HOUR) * px;
+  }, [events, tasks, hidden, px, week]);
 
   const switchPill = (label: string, active: boolean) => (
     <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, color: active ? ACCENT_FG : C.textFaint, fontWeight: active ? 600 : 400, background: active ? accent : "transparent" }}>{label}</span>
   );
+
+  const [monthName, yearStr] = monthLabel(week[2]).split(" ");
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.calendarBg }}>
@@ -244,7 +237,7 @@ export function Calendar() {
       <div style={{ height: 52, flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", borderBottom: `1px solid ${C.borderSoft}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", color: C.text }}>
-            June <span style={{ color: C.textMute3, fontWeight: 500 }}>2026</span>
+            {monthName} <span style={{ color: C.textMute3, fontWeight: 500 }}>{yearStr}</span>
           </span>
           <div style={{ display: "flex", gap: 2 }}>
             <Hoverable as="button" onClick={prev} style={{ background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: "7px 0 0 7px", color: "#A2A6B0", cursor: "pointer", padding: "5px 8px" }} hover={{ background: "#222630" }}>
@@ -268,13 +261,13 @@ export function Calendar() {
       {/* day headers */}
       <div style={{ flex: "none", display: "flex", borderBottom: `1px solid ${C.borderSoft}`, background: C.calendarBg }}>
         <div style={{ width: 56, flex: "none", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 6 }}>
-          <span style={{ fontSize: 10, color: C.textFaint2 }}>PDT</span>
+          <span style={{ fontSize: 10, color: C.textFaint2 }}>{tzAbbrev()}</span>
         </div>
-        {DAYS.map((d, di) => {
-          const isToday = di === TODAY_INDEX;
+        {week.map((key) => {
+          const isToday = key === today;
           return (
-            <div key={d.wd} style={{ flex: 1, textAlign: "center", padding: "8px 0 7px" }}>
-              <div style={{ fontSize: 11, color: C.textMute3, letterSpacing: "0.03em" }}>{d.wd}</div>
+            <div key={key} style={{ flex: 1, textAlign: "center", padding: "8px 0 7px" }}>
+              <div style={{ fontSize: 11, color: C.textMute3, letterSpacing: "0.03em" }}>{weekdayShort(key)}</div>
               <div
                 style={
                   isToday
@@ -282,7 +275,7 @@ export function Calendar() {
                     : { fontSize: 18, fontWeight: 700, marginTop: 2, color: C.text3 }
                 }
               >
-                {d.dom}
+                {dayOfMonth(key)}
               </div>
             </div>
           );
@@ -299,22 +292,38 @@ export function Calendar() {
             </div>
           ))}
           <div style={{ position: "absolute", left: 56, right: 0, top: 0, bottom: 0, display: "flex" }}>
-            {DAYS.map((_, di) => (
-              <DayColumn
-                key={di}
-                di={di}
-                positioned={perDay[di]}
-                px={px}
-                now={now}
-                accent={accent}
-                dragging={dragging}
-                ghost={dropTarget && dropTarget.di === di ? dropTarget : null}
-                sel={selDrag && selDrag.di === di ? selDrag : null}
-              />
-            ))}
+            {week.map((date, di) => {
+              const isToday = date === today;
+              const isPastDay = date < today;
+              const maskH = isPastDay ? gridHeight : isToday ? Math.max(0, Math.min(gridHeight, nowTop)) : 0;
+              return (
+                <DayColumn
+                  key={date}
+                  di={di}
+                  positioned={perDay[di]}
+                  px={px}
+                  accent={accent}
+                  dragging={dragging}
+                  isToday={isToday}
+                  nowTop={nowTop}
+                  maskH={maskH}
+                  ghost={dropTarget && dropTarget.di === di ? dropTarget : null}
+                  sel={selDrag && selDrag.di === di ? selDrag : null}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function tzAbbrev(): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(new Date());
+    return parts.find((p) => p.type === "timeZoneName")?.value || "";
+  } catch {
+    return "";
+  }
 }

@@ -1,6 +1,7 @@
 import { useMemo, type KeyboardEvent } from "react";
-import { ACCENT_FG, C, CATS, DAYS } from "../theme";
+import { ACCENT_FG, C, CATS } from "../theme";
 import { fmtDur, fmtTime } from "../lib/format";
+import { weekdayShort } from "../lib/dates";
 import { parseCapture } from "../lib/parse";
 import { useApp } from "../store/app";
 import { overlay } from "./overlay";
@@ -18,13 +19,14 @@ export function Capture() {
   const setCaptureText = useApp((s) => s.setCaptureText);
   const confirmCapture = useApp((s) => s.confirmCapture);
   const closeModal = useApp((s) => s.closeModal);
+  const today = useApp((s) => s.today);
 
   const chips = useMemo<Chip[]>(() => {
-    const p = parseCapture(captureText);
+    const p = parseCapture(captureText, today);
     const out: Chip[] = [];
     if (ctx && ctx.asBlock) {
       out.push({ label: p.title || "Untitled block", bg: "rgba(255,255,255,0.07)", col: C.text2 });
-      out.push({ label: DAYS[ctx.di].wd + " " + fmtTime(ctx.start) + "–" + fmtTime(ctx.end), bg: "rgba(255,122,69,0.14)", col: accent });
+      out.push({ label: weekdayShort(ctx.date) + " " + fmtTime(ctx.start) + "–" + fmtTime(ctx.end), bg: "rgba(255,122,69,0.14)", col: accent });
       if (p.project) {
         const c = CATS[p.cat || "work"];
         out.push({ label: "#" + p.project, bg: c.fill, col: c.text });
@@ -41,7 +43,7 @@ export function Capture() {
     else if (p.dayLabel) out.push({ label: p.dayLabel, bg: "rgba(63,182,164,0.13)", col: "#BDEBE2" });
     else out.push({ label: "Inbox", bg: "rgba(255,255,255,0.05)", col: C.textMute2 });
     return out;
-  }, [captureText, ctx, accent]);
+  }, [captureText, ctx, accent, today]);
 
   const kindLabel = ctx && ctx.asBlock ? "New time block" : "New task";
   const contextLabel = ctx && ctx.asBlock ? "drag-selected on the grid" : "";
