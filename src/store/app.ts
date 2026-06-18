@@ -53,6 +53,7 @@ export interface AppState {
 
   // account
   account: string | null;
+  lastSync: number | null; // epoch ms of last successful calendar pull
 
   // data
   events: CalEvent[];
@@ -142,6 +143,7 @@ export interface AppState {
   loadCalendars: () => void;
 
   hydrate: () => void;
+  refresh: () => void;
   loadTasks: () => void;
   loadCalendar: () => void;
   loadEmails: () => void;
@@ -200,6 +202,7 @@ export const useApp = create<AppState>()(
   showEmail: true,
 
   account: null,
+  lastSync: null,
 
   events: SEED.events,
   allDayEvents: [],
@@ -551,6 +554,13 @@ export const useApp = create<AppState>()(
     get().loadEmails();
   },
 
+  // Manual re-sync.
+  refresh: () => {
+    if (!isTauri || !get().account) return;
+    get().setToast("Syncing…");
+    get().hydrate();
+  },
+
   // Pull live Google Tasks (replacing seed). On failure (not signed in) keep seed.
   // Preserves any already-loaded Gmail tasks (a different source).
   loadTasks: () => {
@@ -628,6 +638,7 @@ export const useApp = create<AppState>()(
         set((st) => ({
           events: meetings,
           allDayEvents: allDay,
+          lastSync: Date.now(),
           tasks: st.tasks.map((t) => {
             const b = blocks.get(t.id);
             return b ? { ...t, scheduled: true, eventId: b.eventId, block: { date: b.date, start: b.start, end: b.end } } : t;

@@ -19,7 +19,12 @@ export function Settings() {
   const toggleWeekends = useApp((s) => s.toggleWeekends);
   const signOut = useApp((s) => s.signOut);
   const exportData = useApp((s) => s.exportData);
+  const lastSync = useApp((s) => s.lastSync);
+  const refresh = useApp((s) => s.refresh);
   const closeModal = useApp((s) => s.closeModal);
+
+  const ago = lastSync ? Math.round((Date.now() - lastSync) / 60000) : null;
+  const syncLabel = ago == null ? "not synced yet" : ago < 1 ? "synced just now" : `synced ${ago}m ago`;
 
   const label: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2 };
   const row: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${C.border}` };
@@ -72,6 +77,19 @@ export function Settings() {
               <span style={{ position: "absolute", top: 2, left: showEmail ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
             </Hoverable>
           </div>
+
+          {/* sync */}
+          {account && (
+            <div style={row}>
+              <div>
+                <span style={label}>Sync</span>
+                <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 3 }}>{syncLabel}</div>
+              </div>
+              <Hoverable as="button" onClick={refresh} style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: "pointer", flex: "none" }} hover={{ background: "#222630", color: "#fff" }}>
+                Refresh
+              </Hoverable>
+            </div>
+          )}
 
           {/* data export */}
           <div style={row}>
