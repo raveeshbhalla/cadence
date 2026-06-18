@@ -8,9 +8,25 @@ mod tasks;
 
 use auth::Account;
 use calendar::{CalendarDto, EventDto};
+use config::CredentialsStatus;
 use gmail::EmailDto;
 use openai::AiParse;
 use tasks::TaskDto;
+
+// ── Local credentials ─────────────────────────────────────────────
+#[tauri::command]
+fn credentials_status() -> CredentialsStatus {
+    config::status()
+}
+
+#[tauri::command]
+fn save_credentials(
+    google_client_id: String,
+    google_client_secret: String,
+    openai_api_key: String,
+) -> Result<CredentialsStatus, String> {
+    config::save_credentials(google_client_id, google_client_secret, openai_api_key)
+}
 
 // ── Auth ──────────────────────────────────────────────────────────
 #[tauri::command]
@@ -41,7 +57,10 @@ fn open_url(url: String) -> Result<(), String> {
 fn export_data(json: String, csv: String) -> Result<String, String> {
     use std::time::{SystemTime, UNIX_EPOCH};
     let home = std::env::var("HOME").map_err(|e| e.to_string())?;
-    let ts = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     let dir = std::path::Path::new(&home).join("Downloads");
     let json_path = dir.join(format!("cadence-export-{ts}.json"));
     let csv_path = dir.join(format!("cadence-export-{ts}.csv"));
@@ -62,7 +81,9 @@ fn set_tray_title(app: tauri::AppHandle, text: String) -> Result<(), String> {
 // ── Google Tasks ──────────────────────────────────────────────────
 #[tauri::command]
 async fn tasks_list() -> Result<Vec<TaskDto>, String> {
-    tauri::async_runtime::spawn_blocking(tasks::list).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(tasks::list)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -73,7 +94,12 @@ async fn task_set_status(list_id: String, id: String, completed: bool) -> Result
 }
 
 #[tauri::command]
-async fn task_create(list_id: String, title: String, due: Option<String>, notes: Option<String>) -> Result<TaskDto, String> {
+async fn task_create(
+    list_id: String,
+    title: String,
+    due: Option<String>,
+    notes: Option<String>,
+) -> Result<TaskDto, String> {
     tauri::async_runtime::spawn_blocking(move || tasks::create(&list_id, &title, due, notes))
         .await
         .map_err(|e| e.to_string())?
@@ -102,7 +128,9 @@ async fn task_set_notes(list_id: String, id: String, notes: String) -> Result<()
 
 #[tauri::command]
 async fn task_delete(list_id: String, id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || tasks::delete(&list_id, &id)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || tasks::delete(&list_id, &id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ── Google Calendar ───────────────────────────────────────────────
@@ -115,18 +143,29 @@ async fn events_list(time_min: String, time_max: String) -> Result<Vec<EventDto>
 
 #[tauri::command]
 async fn calendars_list() -> Result<Vec<CalendarDto>, String> {
-    tauri::async_runtime::spawn_blocking(calendar::list_calendars).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(calendar::list_calendars)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-async fn events_search(q: String, time_min: String, time_max: String) -> Result<Vec<EventDto>, String> {
+async fn events_search(
+    q: String,
+    time_min: String,
+    time_max: String,
+) -> Result<Vec<EventDto>, String> {
     tauri::async_runtime::spawn_blocking(move || calendar::search(&q, &time_min, &time_max))
         .await
         .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-async fn event_create(title: String, start: String, end: String, task_id: String) -> Result<String, String> {
+async fn event_create(
+    title: String,
+    start: String,
+    end: String,
+    task_id: String,
+) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || calendar::create(&title, &start, &end, &task_id))
         .await
         .map_err(|e| e.to_string())?
@@ -155,18 +194,24 @@ async fn event_set_title(event_id: String, title: String) -> Result<(), String> 
 
 #[tauri::command]
 async fn event_delete(event_id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || calendar::delete(&event_id)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || calendar::delete(&event_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ── Gmail ─────────────────────────────────────────────────────────
 #[tauri::command]
 async fn gmail_unreplied() -> Result<Vec<EmailDto>, String> {
-    tauri::async_runtime::spawn_blocking(gmail::unreplied).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(gmail::unreplied)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 async fn gmail_archive(thread_id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || gmail::archive(&thread_id)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || gmail::archive(&thread_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ── OpenAI capture parsing ────────────────────────────────────────
@@ -198,7 +243,9 @@ fn build_tray_menu<R: tauri::Runtime>(
     // Header (next item / status) — non-clickable.
     let header_item;
     if !header.is_empty() {
-        header_item = MenuItemBuilder::with_id("header", header).enabled(false).build(app)?;
+        header_item = MenuItemBuilder::with_id("header", header)
+            .enabled(false)
+            .build(app)?;
         b = b.item(&header_item).separator();
     }
 
@@ -208,7 +255,9 @@ fn build_tray_menu<R: tauri::Runtime>(
         rows.push(MenuItemBuilder::with_id(format!("agenda:{}", it.id), &it.label).build(app)?);
     }
     if rows.is_empty() && !header.is_empty() {
-        let none = MenuItemBuilder::with_id("none", "Nothing scheduled today").enabled(false).build(app)?;
+        let none = MenuItemBuilder::with_id("none", "Nothing scheduled today")
+            .enabled(false)
+            .build(app)?;
         b = b.item(&none);
     }
     for r in &rows {
@@ -223,7 +272,11 @@ fn build_tray_menu<R: tauri::Runtime>(
 
 /// Replace the tray menu with today's agenda (pushed from the webview).
 #[tauri::command]
-fn set_tray_agenda(app: tauri::AppHandle, header: String, items: Vec<AgendaItem>) -> Result<(), String> {
+fn set_tray_agenda(
+    app: tauri::AppHandle,
+    header: String,
+    items: Vec<AgendaItem>,
+) -> Result<(), String> {
     if let Some(tray) = app.tray_by_id("main") {
         let menu = build_tray_menu(&app, &header, &items).map_err(|e| e.to_string())?;
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
@@ -289,6 +342,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            credentials_status,
+            save_credentials,
             google_sign_in,
             auth_status,
             sign_out,

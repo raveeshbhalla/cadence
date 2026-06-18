@@ -2,8 +2,9 @@
 
 ## Secrets
 
-Cadence reads credentials from `~/.config/cadence-env/.env.local` (loaded by the
-Rust backend via dotenv — never bundled into the webview):
+On first launch, onboarding can save these credentials for you. Cadence writes
+them to `~/.config/cadence-env/.env.local` with user-only file permissions. For
+manual setup or local development, create that file yourself:
 
 ```
 GOOGLE_CLIENT_ID=...
@@ -11,7 +12,8 @@ GOOGLE_CLIENT_SECRET=...
 OPENAI_API_KEY=...
 ```
 
-You can copy `.env.example` as a template. Do not commit real credential values;
+You can copy `.env.example` as a template. The Rust backend reads these values;
+they are never bundled into the webview. Do not commit real credential values;
 `.env` and `.env.*` are ignored. See `SECURITY.md` for token storage, CI, and
 release-secret guidance.
 
@@ -50,6 +52,8 @@ pnpm app          # tauri dev — native window
 pnpm dev          # browser preview (auth is mocked outside Tauri)
 ```
 
-On first launch you'll see onboarding → **Continue with Google** opens your
-browser for consent; on success the app stores tokens and proceeds. Subsequent
-launches skip onboarding while tokens are valid.
+On first launch you'll see onboarding. If credentials are missing, paste the
+downloaded Google OAuth JSON or enter the raw client ID/secret, then add
+`OPENAI_API_KEY`. **Continue with Google** opens your browser for consent; on
+success the app stores tokens and proceeds. Subsequent launches skip onboarding
+while tokens are valid.

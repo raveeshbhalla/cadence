@@ -12,6 +12,12 @@ export interface Account {
   email: string;
 }
 
+export interface CredentialsStatus {
+  googleConfigured: boolean;
+  openaiConfigured: boolean;
+  envPath: string;
+}
+
 export interface TaskDto {
   id: string;
   listId: string;
@@ -63,7 +69,27 @@ export interface AiParse {
   list: string | null;
 }
 
+const MOCK_CREDENTIALS_KEY = "cadence.mockCredentialsConfigured";
+const MOCK_ENV_PATH = "~/.config/cadence-env/.env.local";
+
 export const api = {
+  async credentialsStatus(): Promise<CredentialsStatus> {
+    if (!isTauri) {
+      const configured = window.localStorage.getItem(MOCK_CREDENTIALS_KEY) === "true";
+      return { googleConfigured: configured, openaiConfigured: configured, envPath: MOCK_ENV_PATH };
+    }
+    return invoke<CredentialsStatus>("credentials_status");
+  },
+
+  async saveCredentials(googleClientId: string, googleClientSecret: string, openaiApiKey: string): Promise<CredentialsStatus> {
+    if (!isTauri) {
+      await new Promise((r) => setTimeout(r, 300));
+      window.localStorage.setItem(MOCK_CREDENTIALS_KEY, "true");
+      return { googleConfigured: true, openaiConfigured: true, envPath: MOCK_ENV_PATH };
+    }
+    return invoke<CredentialsStatus>("save_credentials", { googleClientId, googleClientSecret, openaiApiKey });
+  },
+
   /** Begin Google OAuth (opens the system browser). Resolves when connected. */
   async googleSignIn(): Promise<Account> {
     if (!isTauri) {
@@ -208,4 +234,3 @@ export const api = {
     return invoke<AiParse>("ai_parse", { text, today, locale });
   },
 };
-

@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "*.*.*"
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to release, for example v0.1.1"
+        required: true
+        type: string
+
+jobs:
+  build-macos:
+    name: Build and upload macOS DMG
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.event.release.tag_name || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.release_tag || github.event.release.tag_name || github.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Set app version from release tag
+        run: pnpm version:set "$RELEASE_TAG"
+      - name: Verify release version
+        run: pnpm version:check -- --tag "$RELEASE_TAG"
+      - name: Test
+        run: pnpm test
+      - name: Build DMG
+        run: pnpm app:build -- --bundles dmg
+      - name: Ensure GitHub release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists."
+          else
+            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --generate-notes
+          fi
+      - name: Upload DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" src-tauri/target/release/bundle/dmg/*.dmg --clobber
