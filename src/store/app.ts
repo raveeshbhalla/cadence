@@ -106,6 +106,9 @@ export interface AppState {
   triageIds: string[];
   triageIndex: number;
 
+  /** Present/privacy mode: redact event & task titles (for screen-sharing). */
+  presentMode: boolean;
+
   // interaction
   drag: DragState | null;
   eventDrag: EventDragState | null;
@@ -189,6 +192,7 @@ export interface AppState {
   startTriage: () => void;
   triageNext: () => void;
   exitTriage: () => void;
+  togglePresent: () => void;
   setAccent: (a: string) => void;
   setDensity: (d: Density) => void;
   toggleSounds: () => void;
@@ -245,6 +249,8 @@ export const useApp = create<AppState>()(
   triageMode: false,
   triageIds: [],
   triageIndex: 0,
+
+  presentMode: false,
 
   drag: null,
   eventDrag: null,
@@ -796,6 +802,7 @@ export const useApp = create<AppState>()(
       return { triageIndex: next };
     }),
   exitTriage: () => set({ triageMode: false, triageIds: [], triageIndex: 0 }),
+  togglePresent: () => set((s) => ({ presentMode: !s.presentMode })),
 
   setAccent: (a) => set({ accent: a }),
   setDensity: (d) => set({ density: d }),

@@ -14,6 +14,7 @@ function FocusBar() {
   const today = useApp((s) => s.today);
   const showEmail = useApp((s) => s.showEmail);
   const hiddenLists = useApp((s) => s.hiddenLists);
+  const present = useApp((s) => s.presentMode);
   const placeTask = useApp((s) => s.placeTask);
 
   const f = useMemo(() => nowFocus({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
@@ -26,7 +27,7 @@ function FocusBar() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: tint }}>{heading}</div>
         <div style={{ fontSize: 13, color: C.text3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {f.title}
+          {present && f.kind !== "clear" ? "Hidden" : f.title}
           {f.sub && <span style={{ color: C.textMute2 }}> · {f.sub}</span>}
         </div>
       </div>
@@ -47,6 +48,7 @@ function FocusBar() {
 function Row({ row, accent }: { row: RailRow; accent: string }) {
   const startTaskDrag = useApp((s) => s.startTaskDrag);
   const toggleTask = useApp((s) => s.toggleTask);
+  const present = useApp((s) => s.presentMode);
   const c = CATS[row.cat] || CATS.work;
 
   const onCheck = (e: PointerEvent) => {
@@ -80,7 +82,7 @@ function Row({ row, accent }: { row: RailRow; accent: string }) {
       </div>
 
       <div onPointerDown={onDragDown} style={{ flex: 1, minWidth: 0, cursor: "grab" }}>
-        <div style={{ fontSize: 13, color: row.done ? "#62656E" : C.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: row.done ? "line-through" : "none" }}>{row.title}</div>
+        <div style={{ fontSize: 13, color: row.done ? "#62656E" : C.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: row.done ? "line-through" : "none" }}>{present ? (row.isEmail ? "Email" : "Task") : row.title}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
           {showDayChip && (
             <span style={{ fontSize: 10.5, fontWeight: 600, flex: "none", color: accent, background: "rgba(255,122,69,0.13)", borderRadius: 5, padding: "1px 6px" }}>{chipLabelFor(row.bucket, row.due)}</span>

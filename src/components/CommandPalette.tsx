@@ -34,6 +34,7 @@ export function CommandPalette() {
       { id: "sync", name: "Sync now", hint: "", glyph: "↺", run: () => { s.closeModal(); s.refresh(); } },
       { id: "roll", name: "Roll overdue tasks to today", hint: "", glyph: "↻", run: () => { s.closeModal(); s.rollOverdue(); } },
       { id: "clear", name: "Clear completed", hint: "", glyph: "✓", run: () => { s.clearCompleted(); s.closeModal(); s.setToast("Cleared completed"); } },
+      { id: "present", name: (s.presentMode ? "Exit" : "Enter") + " present mode (hide titles)", hint: "", glyph: "🔒", run: () => { s.closeModal(); s.togglePresent(); } },
       { id: "settings", name: "Settings", hint: "", glyph: "⚙", run: () => s.openSettings() },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps

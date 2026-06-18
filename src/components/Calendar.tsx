@@ -33,7 +33,9 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
   const startEventDrag = useApp((s) => s.startEventDrag);
   const startResize = useApp((s) => s.startResize);
   const toggleTask = useApp((s) => s.toggleTask);
+  const present = useApp((s) => s.presentMode);
   const { item } = pi;
+  const shownTitle = present ? (item.checkable ? "Task" : "Busy") : item.title;
   // Meetings colour by their calendar; task blocks by category.
   const c = item.color ? { fill: hexToRgba(item.color, 0.18), bar: item.color, text: "#EDEEF1" } : CATS[item.cat] || CATS.work;
 
@@ -86,7 +88,7 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {item.conflict && <span title="Overlaps another meeting" style={{ color: C.overdue, marginRight: 3 }}>⚠</span>}
-            {item.title}
+            {shownTitle}
           </div>
           <div style={{ opacity: 0.72, fontSize: 10, whiteSpace: "nowrap" }}>{fmtTime(item.start)}</div>
         </div>
@@ -231,6 +233,8 @@ export function Calendar() {
   const focusDay = useApp((s) => s.focusDay);
   const showWeekends = useApp((s) => s.showWeekends);
   const setView = useApp((s) => s.setView);
+  const present = useApp((s) => s.presentMode);
+  const togglePresent = useApp((s) => s.togglePresent);
   const dropTarget = useApp((s) => s.dropTarget);
   const selDrag = useApp((s) => s.selDrag);
   const availabilitySlots = useApp((s) => s.availabilitySlots);
@@ -322,6 +326,11 @@ export function Calendar() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {present && (
+            <span onClick={togglePresent} title="Titles hidden — click to exit" style={{ fontSize: 11.5, fontWeight: 600, color: ACCENT_FG, background: accent, borderRadius: 20, padding: "3px 10px", cursor: "pointer" }}>
+              🔒 Presenting
+            </span>
+          )}
           {conflicts > 0 && (
             <span title="Overlapping meetings this week" style={{ fontSize: 11.5, fontWeight: 600, color: C.overdue, background: "rgba(229,115,107,0.14)", borderRadius: 20, padding: "3px 9px" }}>
               ⚠ {conflicts} overlap{conflicts > 1 ? "s" : ""}
@@ -375,8 +384,8 @@ export function Calendar() {
               {items.slice(0, 2).map((a) => {
                 const col = a.color || "#5B9BFF";
                 return (
-                  <div key={a.id} title={a.title} style={{ fontSize: 10.5, fontWeight: 500, color: "#EDEEF1", background: hexToRgba(col, 0.2), borderLeft: `2px solid ${col}`, borderRadius: 4, padding: "1px 5px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {a.title}
+                  <div key={a.id} style={{ fontSize: 10.5, fontWeight: 500, color: "#EDEEF1", background: hexToRgba(col, 0.2), borderLeft: `2px solid ${col}`, borderRadius: 4, padding: "1px 5px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {present ? "Busy" : a.title}
                   </div>
                 );
               })}

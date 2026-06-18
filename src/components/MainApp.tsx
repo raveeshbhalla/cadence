@@ -35,6 +35,7 @@ export function MainApp() {
   const tasks = useApp((s) => s.tasks);
   const now = useApp((s) => s.now);
   const today = useApp((s) => s.today);
+  const presentMode = useApp((s) => s.presentMode);
 
   // Keep the now-line and date buckets current.
   useEffect(() => {
@@ -87,7 +88,8 @@ export function MainApp() {
     const n = items[0];
     let label = "";
     if (n) {
-      const title = n.title.length > 40 ? n.title.slice(0, 39) + "…" : n.title;
+      const raw = presentMode ? "Busy" : n.title;
+      const title = raw.length > 40 ? raw.slice(0, 39) + "…" : raw;
       const mins = n.abs - now;
       const off = diffDays(n.date, today);
       let rel: string;
@@ -99,7 +101,7 @@ export function MainApp() {
       label = `${title} · ${rel}`;
     }
     api.setTrayTitle(label);
-  }, [events, tasks, now, today]);
+  }, [events, tasks, now, today, presentMode]);
 
   return (
     <div className="no-select" style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.windowBg, overflow: "hidden" }}>
