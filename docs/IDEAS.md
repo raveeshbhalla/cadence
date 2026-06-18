@@ -114,3 +114,31 @@ New ideas only (the agents were given Round 1 as an avoid-list). High convergenc
 | 75 | **One-sentence menu-bar day shape** ("Free until 2, then 3 meetings") | bolt-on widgets for "at-a-glance day shape" | efficient.app/apps/notion-calendar | ⏸ defer (have next-event title) |
 
 Round 3 still yielded ~14 novel ideas → not converged. Building #62/#65 (done) + #69; running Round 4 as a convergence test.
+
+---
+
+## Round 4 (2 agents: core-loop gaps + long-tail/international) — CONVERGENCE TEST
+
+Given the full 75-idea avoid-list and told to flag exhaustion. New-idea count per round
+fell **44 → 33 → 16 → 8**; both Round-4 agents independently reported the space is
+"largely exhausted / diminishing returns." → **Loop converged.**
+
+| # | Idea | User problem (cited) | Source | Disposition |
+|---|------|----------------------|--------|-------------|
+| 76 | **Locale-aware NL capture** (parse non-English relative-time words) | "English lacks a word for day-after-tomorrow"; Things parses 8 languages | culturedcode.com/things/support; busymac.com | ✅ Built |
+| 77 | **Per-event/task owner** (household mental-load) | "mothers handle 71% of household mental load… make responsibilities visible" | apolosign.com family-mental-load | ⏸ defer (needs shared calendar) |
+| 78 | **Teaching-week N overlay** (term-anchored week numbers) | students orient by "Week 7", not "Nov 11" | gold.ac.uk academic-week-numbers | ⏸ defer (niche, client-side) |
+| 79 | **Spelled-out durations / gaps** ("lasts 1h 20m", "in 45 min") | dyscalculia: "can't tell how long until 10am"; forced subtraction | discoveringdyscalculia.com | ✅ Built |
+| 80 | **Present/privacy mode** (redact titles while screen-sharing) | "a meeting titled 'Therapist Appointment'" leaks on screen-share | groupcal.app event-detail-visibility | ✅ Built |
+| 81 | **"Running late" one-tap attendee ping** (Gmail reply to invite) | "no native one-click running-late in Google/Outlook" | bardeen.ai/playbooks/running-late | 📋 next (Gmail) |
+| 82 | **Drag email → event with live thread deep-link** | macOS "deposits it as a URL… error dialog"; Apple's is broken | discussions.apple.com/thread/254954512 | ⏸ defer (overlaps email→task) |
+| 83 | **Desktop-layer "today" agenda** (wallpaper-level window) | "calendar that always stays on the desktop wallpaper" (WallCal) | wallcal.app | ⏸ defer (native NSWindow) |
+
+---
+
+## Loop summary
+
+- **83 ideas** gathered over **4 research rounds** (13 web-research sub-agents), each citing a real user problem.
+- **23 shipped** this loop (✅): day capacity, conflict detector, what-now focus, overdue rollover, all-day events, day/weekend views, hide-declined, timezone badge, untitled fallback, join-next (⌘J), search (⌘F), keyboard nav, go-to-date, buffers, canonical join link, native reminders, data export, sync status, completion sound, reduced-motion, present mode, durations, locale capture.
+- **Converged:** new-idea yield fell 44→33→16→8; Round-4 agents reported exhaustion.
+- **Top remaining "next"** (deferred or larger): recurring edit-scope, multiple Google accounts, Month view, offline mode, pre-meeting brief, focus-block defense, multi-level undo stack, NL correction loop, "running late" ping, declutter, accessible grid semantics.
