@@ -124,3 +124,52 @@ export function parseCapture(text: string, today: string): ParsedCapture {
 
   return { title, project, cat, est, time, date, dayLabel, checkbox };
 }
+
+/**
+ * Parse a short "when" expression for triage into a start minute + duration.
+ * "8" → next 8 o'clock; "8pm" → 20:00 (30m default); "8-9pm" → 20:00 for 1h;
+ * "8pm, 90 mins" / "8pm 90m" → 20:00 for 90m. Returns null if no time is found.
+ */
+export function parseWhen(text: string, nowMin: number): { start: number; dur: number } | null {
+  let t = " " + (text || "").toLowerCase().trim() + " ";
+  const to24 = (h: string, mm: string | undefined, ap: string | undefined) => {
+    let hh = parseInt(h) % (ap ? 12 : 24);
+    if (ap && /pm/.test(ap)) hh += 12;
+    return hh * 60 + (mm ? parseInt(mm) : 0);
+  };
+
+  // Range: "8-9pm", "8:30-9", "9 to 10:30am"
+  const r = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
+  if (r) {
+    const ap1 = r[3] || r[6];
+    const ap2 = r[6] || r[3];
+    const s = to24(r[1], r[2], ap1);
+    const e = to24(r[4], r[5], ap2);
+    if (e > s) return { start: s, dur: e - s };
+  }
+
+  // Optional explicit duration.
+  let dur: number | null = null;
+  let m = t.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/);
+  if (m) {
+    const n = parseFloat(m[1]);
+    dur = m[2][0] === "h" ? Math.round(n * 60) : Math.round(n);
+    t = t.replace(m[0], " ");
+  }
+
+  let start: number | null = null;
+  if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/))) {
+    start = to24(m[1], m[2], m[3]);
+  } else if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\b/))) {
+    // bare hour → the next time that o'clock occurs
+    const h = parseInt(m[1]);
+    const mm = m[2] ? parseInt(m[2]) : 0;
+    if (h >= 0 && h <= 23) {
+      const cands = h <= 12 ? [h * 60 + mm, ((h % 12) + 12) * 60 + mm] : [h * 60 + mm];
+      const future = cands.filter((c) => c > nowMin).sort((a, b) => a - b);
+      start = future.length ? future[0] : Math.max(...cands);
+    }
+  }
+  if (start == null) return null;
+  return { start, dur: dur ?? 30 };
+}

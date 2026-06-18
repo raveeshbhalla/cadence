@@ -161,7 +161,7 @@ export interface AppState {
   unscheduleTask: (id: string) => void;
   toggleTask: (id: string) => void;
   captureScheduled: (date: string, start: number, dur: number, title: string, cat: CategoryKey, project: string) => void;
-  placeTask: (taskId: string, date: string, start: number) => void;
+  placeTask: (taskId: string, date: string, start: number, dur?: number) => void;
   /** Push a task's current block to Google Calendar (create or update the event). */
   syncBlock: (taskId: string) => void;
   /** Push a task's due date to Google Tasks. */
@@ -449,7 +449,7 @@ export const useApp = create<AppState>()(
   },
 
   // Drag a rail task onto the grid → schedule it (or reschedule if already placed).
-  placeTask: (taskId, date, start) => {
+  placeTask: (taskId, date, start, dur) => {
     const s = get();
     const t = s.tasks.find((x) => x.id === taskId);
     if (!t) return;
@@ -460,9 +460,9 @@ export const useApp = create<AppState>()(
 
     // Dragging an email onto the grid promotes it to a real, scheduled Google Task.
     if (t.source === "gmail") {
-      const dur = t.est;
+      const len = dur ?? t.est;
       const localId = "n" + Date.now() + Math.floor(Math.random() * 99);
-      const converted: Task = { ...t, id: localId, source: "gtasks", scheduled: true, due: date, block: { date, start, end: start + dur } };
+      const converted: Task = { ...t, id: localId, source: "gtasks", scheduled: true, due: date, block: { date, start, end: start + len } };
       const tasks = s.tasks.map((x) => (x.id === taskId ? converted : x));
       s.commit("Scheduled “" + t.title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
       if (isTauri && s.account) {
@@ -478,11 +478,11 @@ export const useApp = create<AppState>()(
       return;
     }
 
-    const dur = t.block ? t.block.end - t.block.start : t.est;
+    const len = dur ?? (t.block ? t.block.end - t.block.start : t.est);
     const wasScheduled = !!t.block;
     // Scheduling a task sets its due date to the scheduled day — so an overdue
     // task dragged forward is no longer overdue, and the rail bucket matches the grid.
-    const tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, scheduled: true, due: date, block: { date, start, end: start + dur } } : x));
+    const tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, scheduled: true, due: date, block: { date, start, end: start + len } } : x));
     const verb = wasScheduled ? "Rescheduled “" : "Added “";
     s.commit(verb + t.title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
     get().syncBlock(taskId);
@@ -782,12 +782,20 @@ export const useApp = create<AppState>()(
   // Triage: queue up unscheduled overdue + today tasks for keyboard slotting.
   startTriage: () => {
     const s = get();
+    const hiddenLists = s.hiddenLists || [];
     const ids = s.tasks
-      .filter((t) => t.status !== "completed" && t.source !== "gmail" && !t.block && t.due != null && t.due <= s.today)
-      .sort((a, b) => (a.due! < b.due! ? -1 : 1))
+      .filter((t) => {
+        if (t.status === "completed" || t.block) return false;
+        if (t.listId && hiddenLists.includes(t.listId)) return false;
+        // unreplied email + overdue/today tasks
+        if (t.source === "gmail") return s.showEmail;
+        return t.due != null && t.due <= s.today;
+      })
+      // overdue/today first (by due), unreplied email (no due) last
+      .sort((a, b) => (a.due ?? "9999") < (b.due ?? "9999") ? -1 : (a.due ?? "9999") > (b.due ?? "9999") ? 1 : 0)
       .map((t) => t.id);
     if (!ids.length) {
-      s.setToast("Nothing to triage — overdue and today are clear");
+      s.setToast("Nothing to triage right now");
       return;
     }
     set({ triageMode: true, triageIds: ids, triageIndex: 0, modal: null });

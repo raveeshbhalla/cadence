@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { parseCapture } from "./parse";
+import { parseCapture, parseWhen } from "./parse";
+
+describe("parseWhen (triage)", () => {
+  const NINE_AM = 9 * 60;
+  it("explicit pm time defaults to 30 min", () => {
+    expect(parseWhen("8pm", NINE_AM)).toEqual({ start: 20 * 60, dur: 30 });
+  });
+  it("range → start + duration", () => {
+    expect(parseWhen("8-9pm", NINE_AM)).toEqual({ start: 20 * 60, dur: 60 });
+  });
+  it("time + duration (both phrasings)", () => {
+    expect(parseWhen("8pm 90m", NINE_AM)).toEqual({ start: 20 * 60, dur: 90 });
+    expect(parseWhen("8pm, 90 mins", NINE_AM)).toEqual({ start: 20 * 60, dur: 90 });
+  });
+  it("bare hour → next occurrence of that o'clock", () => {
+    expect(parseWhen("8", NINE_AM)).toEqual({ start: 20 * 60, dur: 30 }); // 8am passed → 8pm
+    expect(parseWhen("8", 7 * 60)).toEqual({ start: 8 * 60, dur: 30 }); // before 8am → 8am
+  });
+  it("no time → null", () => {
+    expect(parseWhen("lunch", NINE_AM)).toBeNull();
+  });
+});
 
 const TODAY = "2026-06-17"; // Wednesday
 

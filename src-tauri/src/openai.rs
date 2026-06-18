@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use crate::config;
 
 const ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
-const MODEL: &str = "gpt-4o-mini";
+const MODEL: &str = "gpt-5.4-nano";
 
 /// Structured result of parsing a natural-language capture line.
 #[derive(Serialize, Deserialize, Default)]

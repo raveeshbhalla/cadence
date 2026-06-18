@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from "react";
-import { ACCENT_FG, C, CATS } from "../theme";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { ACCENT_FG, C, CATS, END_HOUR, START_HOUR } from "../theme";
 import { fmtDur, fmtTime, overdueLabel } from "../lib/format";
 import { diffDays } from "../lib/dates";
-import { openSlots } from "../lib/slots";
+import { parseWhen } from "../lib/parse";
 import { useApp } from "../store/app";
+import { Hoverable } from "./Hoverable";
 import { overlay } from "./overlay";
 
 export function Triage() {
@@ -12,7 +13,6 @@ export function Triage() {
   const index = useApp((s) => s.triageIndex);
   const today = useApp((s) => s.today);
   const now = useApp((s) => s.now);
-  const events = useApp((s) => s.events);
   const tasks = useApp((s) => s.tasks);
   const placeTask = useApp((s) => s.placeTask);
   const toggleTask = useApp((s) => s.toggleTask);
@@ -21,55 +21,48 @@ export function Triage() {
 
   const taskId = ids[index];
   const task = tasks.find((t) => t.id === taskId);
+  const [when, setWhen] = useState("");
 
-  // Open slots today, around everything already scheduled, from now on.
-  const slots = useMemo(() => {
-    if (!task) return [];
-    const busy = [
-      ...events.filter((e) => e.date === today).map((e) => ({ start: e.start, end: e.end })),
-      ...tasks.filter((t) => t.block && t.block.date === today).map((t) => ({ start: t.block!.start, end: t.block!.end })),
-    ];
-    return openSlots(busy, now, task.est, 3);
-  }, [task, events, tasks, today, now]);
+  // Reset the input when we advance to a new task.
+  useEffect(() => setWhen(""), [taskId]);
 
   // Skip past tasks that vanished (deleted / already handled).
   useEffect(() => {
     if (ids.length && !task) triageNext();
   }, [ids, task, triageNext]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const k = (e.key || "").toLowerCase();
-      if (k === "escape") {
-        e.preventDefault();
-        exitTriage();
-      } else if (k === "s") {
-        e.preventDefault();
-        triageNext();
-      } else if (k === "c" || k === "x") {
-        e.preventDefault();
-        if (task) toggleTask(task.id);
-        triageNext();
-      } else if (k === "enter" && slots[0] != null && task) {
-        e.preventDefault();
-        placeTask(task.id, today, slots[0]);
-        triageNext();
-      } else if (/^[1-3]$/.test(k)) {
-        const i = parseInt(k) - 1;
-        if (slots[i] != null && task) {
-          e.preventDefault();
-          placeTask(task.id, today, slots[i]);
-          triageNext();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [task, slots, today, placeTask, toggleTask, triageNext, exitTriage]);
+  const parsed = useMemo(() => {
+    const p = parseWhen(when, now);
+    if (!p) return null;
+    const dur = Math.max(15, Math.min(p.dur, (END_HOUR - START_HOUR) * 60));
+    const start = Math.max(START_HOUR * 60, Math.min(p.start, END_HOUR * 60 - dur));
+    return { start, dur };
+  }, [when, now]);
+
+  const schedule = () => {
+    if (!task || !parsed) return;
+    placeTask(task.id, today, parsed.start, parsed.dur);
+    triageNext();
+  };
+  const complete = () => {
+    if (task) toggleTask(task.id);
+    triageNext();
+  };
+
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      schedule();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      exitTriage();
+    }
+  };
 
   if (!task) return null;
   const c = CATS[task.cat] || CATS.work;
   const overdueDays = task.due ? diffDays(today, task.due) : 0;
+  const isEmail = task.source === "gmail" || task.cat === "email";
 
   const key = (label: string) => (
     <span style={{ fontSize: 11, fontWeight: 600, color: C.text3, background: C.rowHover, border: "1px solid rgba(255,255,255,0.12)", borderBottomWidth: 2, borderRadius: 5, padding: "1px 6px" }}>{label}</span>
@@ -84,13 +77,13 @@ export function Triage() {
           <span style={{ marginLeft: "auto", fontSize: 11, color: C.textFaint2 }}>esc to exit</span>
         </div>
 
-        <div style={{ padding: "22px 20px 8px" }}>
+        <div style={{ padding: "22px 20px 6px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ width: 10, height: 10, borderRadius: 3, background: c.dot, flex: "none" }} />
             <span style={{ fontSize: 21, fontWeight: 700, color: C.text }}>{task.title}</span>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 8, marginLeft: 20, fontSize: 12.5, color: C.textMute }}>
-            <span>{task.project || "No list"}</span>
+            <span>{isEmail ? "Email · " + (task.meta || "needs reply") : task.project || "No list"}</span>
             <span>·</span>
             <span>{fmtDur(task.est)}</span>
             {overdueDays > 0 && (
@@ -102,31 +95,34 @@ export function Triage() {
           </div>
         </div>
 
-        <div style={{ padding: "14px 20px 18px" }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2, marginBottom: 10 }}>Give it a slot today</div>
-          {slots.length === 0 ? (
-            <div style={{ fontSize: 13, color: C.textMute2, padding: "8px 0" }}>No open slots left today — skip, or drag it onto another day.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {slots.map((st, i) => (
-                <button
-                  key={st}
-                  onClick={() => { placeTask(task.id, today, st); triageNext(); }}
-                  style={{ display: "flex", alignItems: "center", gap: 12, background: i === 0 ? "rgba(255,255,255,0.06)" : "transparent", border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 14px", cursor: "pointer", textAlign: "left" }}
-                >
-                  <span style={{ width: 22, height: 22, borderRadius: 6, background: accent, color: ACCENT_FG, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>{i + 1}</span>
-                  <span style={{ flex: 1, fontSize: 14, color: C.text2 }}>{fmtTime(st)} – {fmtTime(st + task.est)}</span>
-                </button>
-              ))}
-            </div>
-          )}
+        <div style={{ padding: "14px 20px 6px" }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2, marginBottom: 8 }}>When today?</div>
+          <input
+            autoFocus
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+            onKeyDown={onKey}
+            placeholder="8pm · 8-9pm · 8pm 90m · 2  (defaults to 30 min)"
+            style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, borderRadius: 9, outline: "none", color: C.text, fontSize: 16, padding: "11px 14px" }}
+          />
+          <div style={{ minHeight: 20, marginTop: 8, fontSize: 13, color: parsed ? accent : C.textFaint2 }}>
+            {parsed ? `${fmtTime(parsed.start)} – ${fmtTime(parsed.start + parsed.dur)}  ·  ${fmtDur(parsed.dur)}` : when.trim() ? "Type a time, e.g. 8pm or 8-9pm" : "Schedules today"}
+          </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 18px", background: C.modalFooterBg, borderTop: `1px solid ${C.border}`, fontSize: 12, color: C.textMute2 }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>{key("1")}–{key("3")} pick</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>{key("↵")} first</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>{key("S")} skip</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>{key("C")} complete</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 16px", background: C.modalFooterBg, borderTop: `1px solid ${C.border}` }}>
+          <Hoverable as="button" onClick={triageNext} style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: "pointer" }} hover={{ background: "#222630", color: "#fff" }}>
+            Skip
+          </Hoverable>
+          <Hoverable as="button" onClick={complete} style={{ background: "none", border: "1px solid rgba(87,199,126,0.3)", color: "#57C77E", fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: "pointer" }} hover={{ background: "rgba(87,199,126,0.12)" }}>
+            Complete
+          </Hoverable>
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.textMute2 }}>{key("↵")} schedule</span>
+            <button onClick={schedule} disabled={!parsed} style={{ background: parsed ? accent : C.rowHover, color: parsed ? ACCENT_FG : C.textFaint2, fontWeight: 600, fontSize: 13, border: "none", borderRadius: 8, padding: "7px 16px", cursor: parsed ? "pointer" : "default" }}>
+              Schedule
+            </button>
+          </span>
         </div>
       </div>
     </div>
