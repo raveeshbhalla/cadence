@@ -37,6 +37,7 @@ export interface EventDto {
   location: string | null;
   description: string | null;
   hangoutLink: string | null;
+  declined: boolean;
 }
 
 export interface CalendarDto {

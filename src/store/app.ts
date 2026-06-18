@@ -508,7 +508,7 @@ export const useApp = create<AppState>()(
         const meetings: CalEvent[] = [];
         const blocks = new Map<string, { eventId: string; date: string; start: number; end: number }>();
         for (const d of dtos) {
-          if (d.allDay) continue;
+          if (d.allDay || d.declined) continue; // hide all-day + declined invites
           if (d.cadenceTaskId) {
             const sd = new Date(d.start);
             const ed = new Date(d.end);

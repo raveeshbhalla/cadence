@@ -21,6 +21,7 @@ pub struct EventDto {
     pub location: Option<String>,
     pub description: Option<String>,
     pub hangout_link: Option<String>,
+    pub declined: bool, // the user declined this invite
 }
 
 /// A calendar in the user's calendar list.
@@ -90,6 +91,10 @@ pub fn list(time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
                 },
             };
             let end = end_obj["dateTime"].as_str().or_else(|| end_obj["date"].as_str()).unwrap_or(&start).to_string();
+            let declined = ev["attendees"]
+                .as_array()
+                .map(|atts| atts.iter().any(|a| a["self"].as_bool() == Some(true) && a["responseStatus"].as_str() == Some("declined")))
+                .unwrap_or(false);
 
             out.push(EventDto {
                 id: ev["id"].as_str().unwrap_or_default().to_string(),
@@ -103,6 +108,7 @@ pub fn list(time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
                 location: ev["location"].as_str().map(|s| s.to_string()),
                 description: ev["description"].as_str().map(|s| s.to_string()),
                 hangout_link: ev["hangoutLink"].as_str().or_else(|| ev["conferenceData"]["entryPoints"][0]["uri"].as_str()).map(|s| s.to_string()),
+                declined,
             });
         }
     }
