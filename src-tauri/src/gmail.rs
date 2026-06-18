@@ -84,3 +84,16 @@ fn urlencode(s: &str) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::display_name;
+
+    #[test]
+    fn parses_from_header() {
+        assert_eq!(display_name("Sam Rivera <sam@x.com>"), "Sam Rivera");
+        assert_eq!(display_name("\"Dana Lee\" <dana@x.com>"), "Dana Lee");
+        assert_eq!(display_name("bob@x.com"), "bob@x.com");
+        assert_eq!(display_name("<solo@x.com>"), "solo@x.com");
+    }
+}

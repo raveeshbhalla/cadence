@@ -17,3 +17,15 @@ pub fn date_part(rfc3339: &str) -> Option<String> {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::date_part;
+
+    #[test]
+    fn extracts_date_from_rfc3339() {
+        assert_eq!(date_part("2026-06-17T14:00:00.000Z").as_deref(), Some("2026-06-17"));
+        assert_eq!(date_part("2026-06-17").as_deref(), Some("2026-06-17"));
+        assert_eq!(date_part("short"), None);
+    }
+}

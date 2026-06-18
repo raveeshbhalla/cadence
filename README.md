@@ -93,7 +93,15 @@ pnpm install
 pnpm dev          # Vite dev server only (browser preview at :1420)
 pnpm app          # tauri dev — native window (requires Rust toolchain)
 pnpm app:build    # tauri build — production .app / .dmg
+
+pnpm test         # Vitest unit suite (dates / parse / bucketing / packing / rail)
+pnpm typecheck    # tsc --noEmit
+pnpm format       # Prettier
+cargo test --manifest-path src-tauri/Cargo.toml --lib   # Rust unit tests
 ```
+
+CI (`.github/workflows/ci.yml`) runs the frontend typecheck/tests/build and the
+Rust tests/check on every push and PR.
 
 The app runs in a browser too (drag, ⌘K, ⌘N all work); the traffic-light buttons are inert
 outside Tauri.

@@ -11,7 +11,10 @@
     "app": "tauri dev",
     "app:build": "tauri build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\""
   },
   "dependencies": {
     "@fontsource/inter": "^5.1.0",
@@ -25,6 +28,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "prettier": "^3.4.2",
     "typescript": "^5.6.3",
     "vite": "^6.0.3",
     "vitest": "^2.1.8"
