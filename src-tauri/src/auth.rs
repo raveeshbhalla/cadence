@@ -47,33 +47,82 @@ fn keyring_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())
 }
 
-/// In-memory cache of the token set. The macOS Keychain re-prompts an unsigned
-/// dev binary on every read, so we read it at most once per launch and serve
-/// every subsequent API call from memory.
+/// Whether to persist tokens in the OS keychain. We only do so in release builds:
+/// the macOS Keychain ties an item's "always allow" trust to the app's code
+/// signature, and `tauri dev` rebuilds change the signature every launch, so a
+/// keychain-backed dev build re-prompts on every open. Debug builds use a
+/// 0600 file instead (same model as gcloud/gh), so there is no prompt.
+const USE_KEYCHAIN: bool = !cfg!(debug_assertions);
+
+/// Path of the file-backed token store (debug builds): ~/.config/cadence/tokens.json.
+fn token_file() -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(std::path::Path::new(&home).join(".config/cadence/tokens.json"))
+}
+
+fn file_load() -> Option<StoredTokens> {
+    let raw = std::fs::read_to_string(token_file()?).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+fn file_save(t: &StoredTokens) -> Result<(), String> {
+    let path = token_file().ok_or("no HOME directory")?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let raw = serde_json::to_string(t).map_err(|e| e.to_string())?;
+    std::fs::write(&path, raw).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+fn file_clear() {
+    if let Some(p) = token_file() {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+/// In-memory cache of the token set, read at most once per launch so the slow
+/// path (keychain / disk) isn't hit on every API call.
 static CACHE: Mutex<Option<StoredTokens>> = Mutex::new(None);
 
 fn load_tokens() -> Option<StoredTokens> {
     if let Some(t) = CACHE.lock().unwrap().as_ref() {
         return Some(t.clone());
     }
-    let entry = keyring_entry().ok()?;
-    let raw = entry.get_password().ok()?;
-    let tokens: StoredTokens = serde_json::from_str(&raw).ok()?;
+    let tokens = if USE_KEYCHAIN {
+        let raw = keyring_entry().ok()?.get_password().ok()?;
+        serde_json::from_str(&raw).ok()?
+    } else {
+        file_load()?
+    };
     *CACHE.lock().unwrap() = Some(tokens.clone());
     Some(tokens)
 }
 
 fn save_tokens(t: &StoredTokens) -> Result<(), String> {
-    let raw = serde_json::to_string(t).map_err(|e| e.to_string())?;
-    keyring_entry()?.set_password(&raw).map_err(|e| e.to_string())?;
+    if USE_KEYCHAIN {
+        let raw = serde_json::to_string(t).map_err(|e| e.to_string())?;
+        keyring_entry()?.set_password(&raw).map_err(|e| e.to_string())?;
+    } else {
+        file_save(t)?;
+    }
     *CACHE.lock().unwrap() = Some(t.clone());
     Ok(())
 }
 
 pub fn clear_tokens() -> Result<(), String> {
     *CACHE.lock().unwrap() = None;
-    if let Ok(entry) = keyring_entry() {
-        let _ = entry.delete_credential();
+    if USE_KEYCHAIN {
+        if let Ok(entry) = keyring_entry() {
+            let _ = entry.delete_credential();
+        }
+    } else {
+        file_clear();
     }
     Ok(())
 }
