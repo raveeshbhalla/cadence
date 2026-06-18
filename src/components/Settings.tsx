@@ -18,6 +18,7 @@ export function Settings() {
   const toggleEmailSource = useApp((s) => s.toggleEmailSource);
   const toggleWeekends = useApp((s) => s.toggleWeekends);
   const signOut = useApp((s) => s.signOut);
+  const exportData = useApp((s) => s.exportData);
   const closeModal = useApp((s) => s.closeModal);
 
   const label: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2 };
@@ -69,6 +70,17 @@ export function Settings() {
             <span style={label}>Gmail · Primary</span>
             <Hoverable onClick={toggleEmailSource} style={{ width: 30, height: 18, borderRadius: 20, position: "relative", transition: "background .15s", background: showEmail ? accent : "#3A3D45", cursor: "pointer" }} hover={{}}>
               <span style={{ position: "absolute", top: 2, left: showEmail ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
+            </Hoverable>
+          </div>
+
+          {/* data export */}
+          <div style={row}>
+            <div>
+              <span style={label}>Your data</span>
+              <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 3 }}>Lives in your Google account — export anytime</div>
+            </div>
+            <Hoverable as="button" onClick={exportData} style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: "pointer", flex: "none" }} hover={{ background: "#222630", color: "#fff" }}>
+              Export
             </Hoverable>
           </div>
 

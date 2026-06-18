@@ -188,6 +188,7 @@ export interface AppState {
   setDensity: (d: Density) => void;
   setAccount: (email: string | null) => void;
   signOut: () => void;
+  exportData: () => void;
 }
 
 export const useApp = create<AppState>()(
@@ -789,6 +790,26 @@ export const useApp = create<AppState>()(
       if (isTauri) location.reload();
     };
     api.signOut().then(done, done);
+  },
+
+  // Your data is never trapped: dump tasks + events to Downloads as JSON + CSV.
+  exportData: () => {
+    const s = get();
+    const json = JSON.stringify({ exportedAt: new Date().toISOString(), account: s.account, tasks: s.tasks, events: s.events, allDayEvents: s.allDayEvents }, null, 2);
+    const esc = (v: string) => `"${(v || "").replace(/"/g, '""')}"`;
+    const rows = [["type", "title", "date_or_due", "start", "end", "status_or_list"].join(",")];
+    for (const t of s.tasks) rows.push(["task", t.title, t.due || "", "", "", t.status].map(esc).join(","));
+    for (const e of s.events) rows.push(["event", e.title, e.date, fmtTime(e.start), fmtTime(e.end), ""].map(esc).join(","));
+    for (const a of s.allDayEvents) rows.push(["all-day", a.title, a.date, "", "", ""].map(esc).join(","));
+    const csv = rows.join("\n");
+    if (!isTauri) {
+      s.setToast("Export runs in the desktop app");
+      return;
+    }
+    api
+      .exportData(json, csv)
+      .then((path) => s.setToast("Exported to " + path.replace(/^.*\//, "~/Downloads/")))
+      .catch((e) => s.setToast("Export failed — " + shortErr(e)));
   },
     }),
     {

@@ -89,6 +89,11 @@ export const api = {
     return invoke<void>("set_tray_title", { text });
   },
 
+  /** Write a data export to Downloads. Returns the file path. */
+  async exportData(json: string, csv: string): Promise<string> {
+    return invoke<string>("export_data", { json, csv });
+  },
+
   /** Open a URL in the default browser. */
   async openUrl(url: string): Promise<void> {
     if (!isTauri) {

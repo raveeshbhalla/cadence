@@ -36,6 +36,20 @@ fn open_url(url: String) -> Result<(), String> {
     open::that(url).map_err(|e| e.to_string())
 }
 
+/// Write a data export (JSON + CSV) to the user's Downloads folder. Returns the path.
+#[tauri::command]
+fn export_data(json: String, csv: String) -> Result<String, String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let ts = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let dir = std::path::Path::new(&home).join("Downloads");
+    let json_path = dir.join(format!("cadence-export-{ts}.json"));
+    let csv_path = dir.join(format!("cadence-export-{ts}.csv"));
+    std::fs::write(&json_path, json).map_err(|e| e.to_string())?;
+    std::fs::write(&csv_path, csv).map_err(|e| e.to_string())?;
+    Ok(json_path.to_string_lossy().to_string())
+}
+
 /// Set the macOS menu-bar (tray) title — the frontend pushes the next item here.
 #[tauri::command]
 fn set_tray_title(app: tauri::AppHandle, text: String) -> Result<(), String> {
@@ -222,6 +236,7 @@ pub fn run() {
             auth_status,
             sign_out,
             open_url,
+            export_data,
             set_tray_title,
             tasks_list,
             task_set_status,
