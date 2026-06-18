@@ -36,6 +36,15 @@ fn open_url(url: String) -> Result<(), String> {
     open::that(url).map_err(|e| e.to_string())
 }
 
+/// Set the macOS menu-bar (tray) title — the frontend pushes the next item here.
+#[tauri::command]
+fn set_tray_title(app: tauri::AppHandle, text: String) -> Result<(), String> {
+    if let Some(tray) = app.tray_by_id("main") {
+        tray.set_title(Some(text)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ── Google Tasks ──────────────────────────────────────────────────
 #[tauri::command]
 async fn tasks_list() -> Result<Vec<TaskDto>, String> {
@@ -128,16 +137,69 @@ async fn ai_parse(text: String, today: String) -> Result<AiParse, String> {
         .map_err(|e| e.to_string())?
 }
 
+fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder};
+    use tauri::tray::TrayIconBuilder;
+    use tauri::Manager;
+
+    let open = MenuItemBuilder::with_id("open", "Open Cadence").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit Cadence").build(app)?;
+    let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
+
+    TrayIconBuilder::with_id("main")
+        .icon(app.default_window_icon().unwrap().clone())
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            // Left-click the menubar icon → toggle the window.
+            if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, button_state: tauri::tray::MouseButtonState::Up, .. } = event {
+                let app = tray.app_handle();
+                if let Some(w) = app.get_webview_window("main") {
+                    if w.is_visible().unwrap_or(false) {
+                        let _ = w.hide();
+                    } else {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                    }
+                }
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     config::init();
 
     tauri::Builder::default()
+        .setup(|app| {
+            setup_tray(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Keep Cadence alive in the menu bar when its window is closed.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             google_sign_in,
             auth_status,
             sign_out,
             open_url,
+            set_tray_title,
             tasks_list,
             task_set_status,
             task_create,

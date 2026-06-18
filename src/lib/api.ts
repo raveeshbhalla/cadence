@@ -79,6 +79,12 @@ export const api = {
     return invoke<void>("sign_out");
   },
 
+  /** Set the macOS menu-bar title (next meeting / task). */
+  async setTrayTitle(text: string): Promise<void> {
+    if (!isTauri) return;
+    return invoke<void>("set_tray_title", { text });
+  },
+
   /** Open a URL in the default browser. */
   async openUrl(url: string): Promise<void> {
     if (!isTauri) {
