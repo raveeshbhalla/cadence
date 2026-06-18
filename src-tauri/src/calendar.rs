@@ -21,7 +21,8 @@ pub struct EventDto {
     pub location: Option<String>,
     pub description: Option<String>,
     pub hangout_link: Option<String>,
-    pub declined: bool, // the user declined this invite
+    pub declined: bool,        // the user declined this invite
+    pub time_zone: Option<String>, // explicit IANA zone on the event start, if any
 }
 
 /// A calendar in the user's calendar list.
@@ -147,6 +148,7 @@ fn build_event(ev: &Value, cal_id: &str, color: &str) -> Option<EventDto> {
         description: ev["description"].as_str().map(|s| s.to_string()),
         hangout_link: ev["hangoutLink"].as_str().or_else(|| ev["conferenceData"]["entryPoints"][0]["uri"].as_str()).map(|s| s.to_string()),
         declined,
+        time_zone: ev["start"]["timeZone"].as_str().map(|s| s.to_string()),
     })
 }
 

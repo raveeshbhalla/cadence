@@ -38,6 +38,7 @@ export interface EventDto {
   description: string | null;
   hangoutLink: string | null;
   declined: boolean;
+  timeZone: string | null;
 }
 
 export interface CalendarDto {

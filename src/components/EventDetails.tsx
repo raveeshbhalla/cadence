@@ -17,6 +17,14 @@ export function EventDetails() {
   const when = `${weekdayShort(ev.date)}, ${monthShort(ev.date)} ${d.getDate()} · ${fmtTime(ev.start)} – ${fmtTime(ev.end)}`;
   const color = ev.color || "#5B9BFF";
   const join = meetingLink(ev);
+  const localTz = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch {
+      return "";
+    }
+  })();
+  const tzNote = ev.timeZone && ev.timeZone !== localTz ? `Created in ${ev.timeZone} — shown in your local time` : "";
 
   const row = (icon: string, content: React.ReactNode) => (
     <div style={{ display: "flex", gap: 12, padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
@@ -35,6 +43,7 @@ export function EventDetails() {
             <span style={{ marginLeft: "auto", fontSize: 11, color: C.textFaint2, flex: "none", marginTop: 4 }}>esc</span>
           </div>
           <div style={{ fontSize: 13, color: C.textMute, marginTop: 8, marginLeft: 23 }}>{when}</div>
+          {tzNote && <div style={{ fontSize: 11.5, color: "#E5B84A", marginTop: 5, marginLeft: 23 }}>⚠ {tzNote}</div>}
         </div>
 
         <div style={{ padding: "0 20px 8px" }}>

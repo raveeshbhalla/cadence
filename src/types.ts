@@ -50,6 +50,7 @@ export interface CalEvent {
   location?: string;
   description?: string;
   hangoutLink?: string;
+  timeZone?: string;
 }
 
 /** An all-day calendar item (birthday, PTO, deadline), shown in the banner lane. */

@@ -884,6 +884,7 @@ function eventDtoToCalEvent(d: EventDto): CalEvent {
     location: d.location ?? undefined,
     description: d.description ?? undefined,
     hangoutLink: d.hangoutLink ?? undefined,
+    timeZone: d.timeZone ?? undefined,
   };
 }
 
