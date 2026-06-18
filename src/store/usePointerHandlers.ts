@@ -227,6 +227,7 @@ export function usePointerHandlers() {
 
     const onKey = (e: KeyboardEvent) => {
       const s = useApp.getState();
+      if (s.triageMode) return; // Triage handles its own keys
       const k = (e.key || "").toLowerCase();
       const meta = e.metaKey || e.ctrlKey;
       if (meta && k === "k") {

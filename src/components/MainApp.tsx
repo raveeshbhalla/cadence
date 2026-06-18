@@ -14,6 +14,7 @@ import { Settings } from "./Settings";
 import { TaskEditor } from "./TaskEditor";
 import { EventDetails } from "./EventDetails";
 import { AvailabilityPanel } from "./AvailabilityPanel";
+import { Triage } from "./Triage";
 import { Toast } from "./Toast";
 import { DragChip } from "./DragChip";
 
@@ -24,6 +25,7 @@ export function MainApp() {
   const editorId = useApp((s) => s.editorId);
   const eventDetailsId = useApp((s) => s.eventDetailsId);
   const availabilityMode = useApp((s) => s.availabilityMode);
+  const triageMode = useApp((s) => s.triageMode);
   const tickNow = useApp((s) => s.tickNow);
   const events = useApp((s) => s.events);
   const tasks = useApp((s) => s.tasks);
@@ -72,6 +74,7 @@ export function MainApp() {
       {editorId && <TaskEditor />}
       {eventDetailsId && <EventDetails />}
       {availabilityMode && <AvailabilityPanel />}
+      {triageMode && <Triage />}
     </div>
   );
 }

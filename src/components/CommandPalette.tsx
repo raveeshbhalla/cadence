@@ -21,7 +21,8 @@ export function CommandPalette() {
     return [
       { id: "new", name: "New task", hint: "⌘N", glyph: "＋", run: () => s.openCapture() },
       { id: "side", name: (s.sidebarHidden ? "Show" : "Hide") + " sidebar", hint: "", glyph: "▤", run: () => { s.toggleSidebar(); s.closeModal(); } },
-      { id: "avail", name: "Share availability", hint: "Copy 3 open slots", glyph: "◷", run: () => { s.closeModal(); s.shareAvailability(); } },
+      { id: "triage", name: "Triage tasks", hint: "Slot overdue + today", glyph: "⚡", run: () => { s.closeModal(); s.startTriage(); } },
+      { id: "avail", name: "Share availability", hint: "Copy open slots", glyph: "◷", run: () => { s.closeModal(); s.shareAvailability(); } },
       { id: "meet", name: "Meet with…", hint: "Find a time", glyph: "◎", run: () => { s.closeModal(); s.setToast("Meet with… (demo)"); } },
       { id: "email", name: (s.showEmail ? "Hide" : "Show") + " Gmail · Primary", hint: "Email source", glyph: "✉", run: () => { s.toggleEmailSource(); s.closeModal(); } },
       { id: "today", name: "Go to today", hint: "", glyph: "◆", run: () => { s.closeModal(); s.gotoToday(); } },

@@ -90,6 +90,11 @@ export interface AppState {
   availabilitySlots: { date: string; start: number; end: number }[];
   availabilityLabel: string;
 
+  // triage mode
+  triageMode: boolean;
+  triageIds: string[];
+  triageIndex: number;
+
   // interaction
   drag: DragState | null;
   eventDrag: EventDragState | null;
@@ -157,6 +162,9 @@ export interface AppState {
   setAvailabilityLabel: (text: string) => void;
   copyAvailability: () => void;
   exitAvailability: () => void;
+  startTriage: () => void;
+  triageNext: () => void;
+  exitTriage: () => void;
   setAccent: (a: string) => void;
   setDensity: (d: Density) => void;
   setAccount: (email: string | null) => void;
@@ -200,6 +208,10 @@ export const useApp = create<AppState>()(
   availabilityMode: false,
   availabilitySlots: [],
   availabilityLabel: "",
+
+  triageMode: false,
+  triageIds: [],
+  triageIndex: 0,
 
   drag: null,
   eventDrag: null,
@@ -565,6 +577,31 @@ export const useApp = create<AppState>()(
     s.setToast(`Copied ${s.availabilitySlots.length} slot${s.availabilitySlots.length > 1 ? "s" : ""} to clipboard`);
   },
   exitAvailability: () => set({ availabilityMode: false, availabilitySlots: [], availabilityLabel: "" }),
+
+  // Triage: queue up unscheduled overdue + today tasks for keyboard slotting.
+  startTriage: () => {
+    const s = get();
+    const ids = s.tasks
+      .filter((t) => t.status !== "completed" && t.source !== "gmail" && !t.block && t.due != null && t.due <= s.today)
+      .sort((a, b) => (a.due! < b.due! ? -1 : 1))
+      .map((t) => t.id);
+    if (!ids.length) {
+      s.setToast("Nothing to triage — overdue and today are clear");
+      return;
+    }
+    set({ triageMode: true, triageIds: ids, triageIndex: 0, modal: null });
+  },
+  triageNext: () =>
+    set((s) => {
+      const next = s.triageIndex + 1;
+      if (next >= s.triageIds.length) {
+        get().setToast("Triage complete");
+        return { triageMode: false, triageIds: [], triageIndex: 0 };
+      }
+      return { triageIndex: next };
+    }),
+  exitTriage: () => set({ triageMode: false, triageIds: [], triageIndex: 0 }),
+
   setAccent: (a) => set({ accent: a }),
   setDensity: (d) => set({ density: d }),
   setAccount: (email) => set({ account: email }),
