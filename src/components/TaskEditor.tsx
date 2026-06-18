@@ -80,8 +80,8 @@ export function TaskEditor() {
             </Hoverable>
           )}
           <span style={{ flex: 1 }} />
-          <button onClick={() => { commit(); closeEditor(); }} style={{ background: useApp.getState().accent, color: "#1A0E07", fontWeight: 600, fontSize: 13, border: "none", borderRadius: 8, padding: "7px 18px", cursor: "pointer" }}>
-            Done
+          <button onClick={() => { commit(); closeEditor(); }} style={{ display: "flex", alignItems: "center", gap: 8, background: useApp.getState().accent, color: "#1A0E07", fontWeight: 600, fontSize: 13, border: "none", borderRadius: 8, padding: "7px 18px", cursor: "pointer" }}>
+            Done <span className="keycap">↵</span>
           </button>
         </div>
       </div>

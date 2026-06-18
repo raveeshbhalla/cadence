@@ -1,4 +1,4 @@
-import { useMemo, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { C } from "../theme";
 import { useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
@@ -16,6 +16,8 @@ interface Command {
 export function CommandPalette() {
   const s = useApp();
   const query = useApp((st) => st.paletteQuery);
+  const [selected, setSelected] = useState(0);
+  const rowRefs = useRef<Array<HTMLElement | null>>([]);
 
   const commands = useMemo<Command[]>(() => {
     return [
@@ -45,12 +47,31 @@ export function CommandPalette() {
     return commands.filter((c) => c.name.toLowerCase().includes(q));
   }, [commands, query]);
 
+  useEffect(() => {
+    setSelected(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (selected >= filtered.length) setSelected(Math.max(0, filtered.length - 1));
+  }, [filtered.length, selected]);
+
+  useEffect(() => {
+    rowRefs.current[selected]?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
+
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (filtered[0]) filtered[0].run();
+      if (filtered[selected]) filtered[selected].run();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelected((i) => (filtered.length ? (i + 1) % filtered.length : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelected((i) => (filtered.length ? (i - 1 + filtered.length) % filtered.length : 0));
     } else if (e.key === "Escape") s.closeModal();
   };
+  const isShortcutHint = (hint: string) => /^(⌘.|[A-Z?])$/.test(hint);
 
   return (
     <div onClick={s.closeModal} style={overlay("14vh")}>
@@ -70,13 +91,17 @@ export function CommandPalette() {
           {filtered.map((cmd, i) => (
             <Hoverable
               key={cmd.id}
+              ref={(el) => {
+                rowRefs.current[i] = el;
+              }}
               onClick={cmd.run}
-              style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 10px", borderRadius: 9, cursor: "pointer", background: i === 0 ? "rgba(255,255,255,0.05)" : "transparent" }}
+              onMouseEnter={() => setSelected(i)}
+              style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 10px", borderRadius: 9, cursor: "pointer", background: i === selected ? "rgba(255,255,255,0.05)" : "transparent" }}
               hover={{ background: "rgba(255,255,255,0.08)" }}
             >
               <span style={{ width: 26, height: 26, borderRadius: 7, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>{cmd.glyph}</span>
               <span style={{ flex: 1, fontSize: 13.5, color: C.text2 }}>{cmd.name}</span>
-              {cmd.hint && <span style={{ fontSize: 11, color: C.textFaint }}>{cmd.hint}</span>}
+              {cmd.hint && (isShortcutHint(cmd.hint) ? <span className="keycap">{cmd.hint}</span> : <span style={{ fontSize: 11, color: C.textFaint }}>{cmd.hint}</span>)}
             </Hoverable>
           ))}
         </div>

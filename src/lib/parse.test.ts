@@ -1,28 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { parseCapture, parseWhen } from "./parse";
 
+const TODAY = "2026-06-17"; // Wednesday
+
 describe("parseWhen (triage)", () => {
   const NINE_AM = 9 * 60;
   it("explicit pm time defaults to 30 min", () => {
-    expect(parseWhen("8pm", NINE_AM)).toEqual({ start: 20 * 60, dur: 30 });
+    expect(parseWhen("8pm", NINE_AM, TODAY)).toEqual({ date: TODAY, start: 20 * 60, dur: 30 });
   });
   it("range → start + duration", () => {
-    expect(parseWhen("8-9pm", NINE_AM)).toEqual({ start: 20 * 60, dur: 60 });
+    expect(parseWhen("8-9pm", NINE_AM, TODAY)).toEqual({ date: TODAY, start: 20 * 60, dur: 60 });
   });
   it("time + duration (both phrasings)", () => {
-    expect(parseWhen("8pm 90m", NINE_AM)).toEqual({ start: 20 * 60, dur: 90 });
-    expect(parseWhen("8pm, 90 mins", NINE_AM)).toEqual({ start: 20 * 60, dur: 90 });
+    expect(parseWhen("8pm 90m", NINE_AM, TODAY)).toEqual({ date: TODAY, start: 20 * 60, dur: 90 });
+    expect(parseWhen("8pm, 90 mins", NINE_AM, TODAY)).toEqual({ date: TODAY, start: 20 * 60, dur: 90 });
   });
   it("bare hour → next occurrence of that o'clock", () => {
-    expect(parseWhen("8", NINE_AM)).toEqual({ start: 20 * 60, dur: 30 }); // 8am passed → 8pm
-    expect(parseWhen("8", 7 * 60)).toEqual({ start: 8 * 60, dur: 30 }); // before 8am → 8am
+    expect(parseWhen("8", NINE_AM, TODAY)).toEqual({ date: TODAY, start: 20 * 60, dur: 30 }); // 8am passed → 8pm
+    expect(parseWhen("8", 7 * 60, TODAY)).toEqual({ date: TODAY, start: 8 * 60, dur: 30 }); // before 8am → 8am
+  });
+  it("resolves relative dates", () => {
+    expect(parseWhen("tomorrow 8pm", NINE_AM, TODAY)).toEqual({ date: "2026-06-18", start: 20 * 60, dur: 30 });
+    expect(parseWhen("tomorrow 2", NINE_AM, TODAY)).toEqual({ date: "2026-06-18", start: 14 * 60, dur: 30 });
+    expect(parseWhen("next week 2pm", NINE_AM, TODAY)).toEqual({ date: "2026-06-22", start: 14 * 60, dur: 30 });
+    expect(parseWhen("next week thursday 10-11am", NINE_AM, TODAY)).toEqual({ date: "2026-06-25", start: 10 * 60, dur: 60 });
+    expect(parseWhen("friday 8-9pm", NINE_AM, TODAY)).toEqual({ date: "2026-06-19", start: 20 * 60, dur: 60 });
   });
   it("no time → null", () => {
-    expect(parseWhen("lunch", NINE_AM)).toBeNull();
+    expect(parseWhen("lunch", NINE_AM, TODAY)).toBeNull();
   });
 });
-
-const TODAY = "2026-06-17"; // Wednesday
 
 describe("parseCapture", () => {
   it("extracts title, weekday, time, duration, list", () => {

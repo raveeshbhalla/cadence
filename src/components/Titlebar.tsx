@@ -71,7 +71,7 @@ export function Titlebar() {
       >
         <Search />
         <span style={{ flex: 1, textAlign: "left" }}>Search or run a command</span>
-        <span style={{ fontSize: 11, color: C.textFaint, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, padding: "0 5px" }}>⌘K</span>
+        <span className="keycap">⌘K</span>
       </Hoverable>
 
       <Hoverable

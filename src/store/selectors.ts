@@ -3,6 +3,7 @@ import type { CategoryKey } from "../theme";
 import type { Task } from "../types";
 import { type BucketKey, bucketKey, chipLabelFor, fmtDur, fmtTime, isPastEvent, overdueLabel } from "../lib/format";
 import { diffDays } from "../lib/dates";
+import { taskListKey } from "../lib/taskLists";
 import type { AppState } from "./app";
 
 export interface RailRow {
@@ -68,7 +69,10 @@ export interface RailData {
 export function buildRail(s: Pick<AppState, "tasks" | "showEmail" | "now" | "today"> & { hiddenLists?: string[] }): RailData {
   const { today } = s;
   const hiddenLists = s.hiddenLists || [];
-  const visible = s.tasks.filter((t) => !(t.listId && hiddenLists.includes(t.listId)));
+  const visible = s.tasks.filter((t) => {
+    const key = taskListKey(t);
+    return !(key && hiddenLists.includes(key));
+  });
   const act = visible.filter((t) => t.status !== "completed");
   const overdue: RailRow[] = [];
   const buckets: Record<string, RailRow[]> = { today: [], inbox: [], tomorrow: [], thisweek: [], nextweek: [], later: [] };
@@ -142,7 +146,8 @@ export function nowFocus(s: Pick<AppState, "tasks" | "events" | "now" | "today" 
   const task = s.tasks
     .filter((t) => {
       if (t.status === "completed" || t.scheduled) return false;
-      if (t.listId && hiddenLists.includes(t.listId)) return false;
+      const key = taskListKey(t);
+      if (key && hiddenLists.includes(key)) return false;
       if (t.source === "gmail") return false;
       return t.due != null && t.due <= today;
     })
@@ -155,7 +160,10 @@ export function nowFocus(s: Pick<AppState, "tasks" | "events" | "now" | "today" 
 /** Today's commitment: unscheduled work to do vs. free time left in the day. */
 export function dayLoad(s: Pick<AppState, "tasks" | "events" | "now" | "today" | "showEmail" | "hiddenLists">): DayLoad {
   const hiddenLists = s.hiddenLists || [];
-  const visible = s.tasks.filter((t) => !(t.listId && hiddenLists.includes(t.listId)));
+  const visible = s.tasks.filter((t) => {
+    const key = taskListKey(t);
+    return !(key && hiddenLists.includes(key));
+  });
 
   // Work still to place: overdue + today's tasks (and email, if shown) not done, not scheduled.
   const toDo = visible.filter((t) => {

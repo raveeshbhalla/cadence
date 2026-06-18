@@ -3,6 +3,7 @@ import { ACCENT_FG, C, CATS, END_HOUR, START_HOUR, pxPerHour } from "../theme";
 import type { DropTarget, GridItem, SelDragState } from "../types";
 import { fmtDur, fmtTime } from "../lib/format";
 import { dayOfMonth, monthLabel, weekdayShort } from "../lib/dates";
+import { taskListKey } from "../lib/taskLists";
 import { pack } from "../lib/pack";
 import { dayLoad } from "../store/selectors";
 import { displayedDays, useApp } from "../store/app";
@@ -16,6 +17,8 @@ interface PositionedItem {
   left: string;
   width: string;
 }
+
+const FALLBACK_CALENDAR_ID = "local-calendar";
 
 function colRect(e: PointerEvent): number {
   const col = (e.currentTarget as HTMLElement).closest("[data-daycol]") as HTMLElement | null;
@@ -264,10 +267,13 @@ export function Calendar() {
   const perDay = useMemo(() => {
     const items: GridItem[] = [
       ...events
-        .filter((e) => !e.calendarId || !hiddenCals.includes(e.calendarId))
+        .filter((e) => !hiddenCals.includes(e.calendarId || FALLBACK_CALENDAR_ID))
         .map((e) => ({ id: e.id, date: e.date, start: e.start, end: e.end, title: e.title, cat: e.cat, color: e.color, checkable: false, done: false })),
       ...tasks
-        .filter((t) => t.block && !(t.listId && hiddenLists.includes(t.listId)))
+        .filter((t) => {
+          const key = taskListKey(t);
+          return t.block && !(key && hiddenLists.includes(key));
+        })
         .map((t) => ({ id: t.id, date: t.block!.date, start: t.block!.start, end: t.block!.end, title: t.title, cat: t.cat, checkable: true, done: t.status === "completed" })),
     ];
 
@@ -300,7 +306,7 @@ export function Calendar() {
   const load = useMemo(() => dayLoad({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
   const conflicts = useMemo(() => perDay.reduce((n, day) => n + day.filter((pi) => pi.item.conflict).length, 0), [perDay]);
   const allDayByDay = useMemo(
-    () => week.map((date) => allDayEvents.filter((a) => a.date === date && !(a.calendarId && hiddenCals.includes(a.calendarId)))),
+    () => week.map((date) => allDayEvents.filter((a) => a.date === date && !hiddenCals.includes(a.calendarId || FALLBACK_CALENDAR_ID))),
     [week, allDayEvents, hiddenCals]
   );
   const hasAllDay = allDayByDay.some((d) => d.length > 0);
@@ -314,13 +320,15 @@ export function Calendar() {
             {monthName} <span style={{ color: C.textMute3, fontWeight: 500 }}>{yearStr}</span>
           </span>
           <div style={{ display: "flex", gap: 2 }}>
-            <Hoverable as="button" onClick={prev} style={{ background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: "7px 0 0 7px", color: "#A2A6B0", cursor: "pointer", padding: "5px 8px" }} hover={{ background: "#222630" }}>
+            <Hoverable as="button" onClick={prev} style={{ display: "flex", alignItems: "center", gap: 6, background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: "7px 0 0 7px", color: "#A2A6B0", cursor: "pointer", padding: "5px 8px" }} hover={{ background: "#222630" }}>
               <ChevronLeft />
+              <span className="keycap">[</span>
             </Hoverable>
-            <Hoverable as="button" onClick={gotoToday} style={{ background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderLeft: "none", borderRight: "none", color: C.text3, cursor: "pointer", padding: "5px 12px", fontSize: 12.5, fontWeight: 500 }} hover={{ background: "#222630" }}>
-              Today
+            <Hoverable as="button" onClick={gotoToday} style={{ display: "flex", alignItems: "center", gap: 8, background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderLeft: "none", borderRight: "none", color: C.text3, cursor: "pointer", padding: "5px 12px", fontSize: 12.5, fontWeight: 500 }} hover={{ background: "#222630" }}>
+              Today <span className="keycap">T</span>
             </Hoverable>
-            <Hoverable as="button" onClick={next} style={{ background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: "0 7px 7px 0", color: "#A2A6B0", cursor: "pointer", padding: "5px 8px" }} hover={{ background: "#222630" }}>
+            <Hoverable as="button" onClick={next} style={{ display: "flex", alignItems: "center", gap: 6, background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: "0 7px 7px 0", color: "#A2A6B0", cursor: "pointer", padding: "5px 8px" }} hover={{ background: "#222630" }}>
+              <span className="keycap">]</span>
               <ChevronRight />
             </Hoverable>
           </div>

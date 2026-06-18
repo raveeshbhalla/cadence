@@ -87,7 +87,7 @@ export function MainApp() {
     // Absolute minutes relative to "now" so we can sort across days.
     const mk = (kind: "event" | "task", id: string, date: string, start: number, end: number, title: string) => {
       const off = diffDays(date, today) * 1440;
-      return { kind, id, abs: off + start, absEnd: off + end, start, date, title };
+      return { kind, id, abs: off + start, absEnd: off + end, start, end, date, title };
     };
     const all = [
       ...events.map((e) => mk("event", e.id, e.date, e.start, e.end, e.title)),
@@ -122,7 +122,7 @@ export function MainApp() {
       const done = it.absEnd <= now;
       const onNow = it.abs <= now && it.absEnd > now;
       const mark = onNow ? "▶ " : done ? "· " : "  ";
-      return { id: `${it.kind}:${it.id}`, label: `${mark}${fmtTime(it.start)}  ${clip(it.title)}` };
+      return { id: `${it.kind}:${it.id}`, label: `${mark}${fmtTime(it.start)}–${fmtTime(it.end)}  ${clip(it.title)}` };
     });
     api.setTrayAgenda(header, rows);
   }, [events, tasks, now, today, presentMode]);

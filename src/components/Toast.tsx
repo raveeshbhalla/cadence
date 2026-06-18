@@ -31,8 +31,8 @@ export function Toast() {
     >
       <span>{toast.msg}</span>
       {toast.undo && (
-        <Hoverable as="button" onClick={onUndo} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: accent, fontWeight: 600, fontSize: 12.5, borderRadius: 7, padding: "5px 11px", cursor: "pointer" }} hover={{ background: "rgba(255,255,255,0.2)" }}>
-          Undo <span style={{ opacity: 0.55, color: C.textMute, fontWeight: 500 }}>⌘Z</span>
+        <Hoverable as="button" onClick={onUndo} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.1)", border: "none", color: accent, fontWeight: 600, fontSize: 12.5, borderRadius: 7, padding: "5px 11px", cursor: "pointer" }} hover={{ background: "rgba(255,255,255,0.2)" }}>
+          Undo <span className="keycap">⌘Z</span>
         </Hoverable>
       )}
     </div>

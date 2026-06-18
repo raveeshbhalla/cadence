@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { ACCENT_FG, ACCENT_OPTIONS, C } from "../theme";
 import type { Density } from "../theme";
+import { api } from "../lib/api";
+import { checkForUpdate, type UpdateInfo } from "../lib/updates";
 import { useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
 import { Check, SignOutIcon } from "./Icon";
@@ -24,9 +27,26 @@ export function Settings() {
   const lastSync = useApp((s) => s.lastSync);
   const refresh = useApp((s) => s.refresh);
   const closeModal = useApp((s) => s.closeModal);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState("");
 
   const ago = lastSync ? Math.round((Date.now() - lastSync) / 60000) : null;
   const syncLabel = ago == null ? "not synced yet" : ago < 1 ? "synced just now" : `synced ${ago}m ago`;
+  const versionLabel = (v: string) => (v.toLowerCase().startsWith("v") ? v : `v${v}`);
+  const updateLabel = updateError || (update ? (update.available ? `${versionLabel(update.latest)} available` : `up to date · ${versionLabel(update.current)}`) : "check GitHub releases");
+  const runUpdateCheck = async () => {
+    setCheckingUpdate(true);
+    setUpdateError("");
+    try {
+      const next = await checkForUpdate();
+      setUpdate(next);
+    } catch {
+      setUpdateError("couldn’t check GitHub");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   const label: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2 };
   const row: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${C.border}` };
@@ -110,6 +130,23 @@ export function Settings() {
             <Hoverable as="button" onClick={exportData} style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: "pointer", flex: "none" }} hover={{ background: "#222630", color: "#fff" }}>
               Export
             </Hoverable>
+          </div>
+
+          {/* updates */}
+          <div style={row}>
+            <div>
+              <span style={label}>Updates</span>
+              <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 3 }}>{updateLabel}</div>
+            </div>
+            {update?.available ? (
+              <Hoverable as="button" onClick={() => api.openUrl(update.url)} style={{ background: accent, border: "none", color: ACCENT_FG, fontWeight: 600, fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: "pointer", flex: "none" }} hover={{ filter: "brightness(1.08)" }}>
+                Open release
+              </Hoverable>
+            ) : (
+              <Hoverable as="button" onClick={() => !checkingUpdate && runUpdateCheck()} style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 8, padding: "7px 12px", cursor: checkingUpdate ? "default" : "pointer", flex: "none" }} hover={checkingUpdate ? {} : { background: "#222630", color: "#fff" }}>
+                {checkingUpdate ? "Checking…" : "Check"}
+              </Hoverable>
+            )}
           </div>
 
           {/* account / sign out */}
