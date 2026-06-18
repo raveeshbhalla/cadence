@@ -334,6 +334,27 @@ export const useApp = create<AppState>()(
       s.setToast("Can’t schedule in the past");
       return;
     }
+
+    // Dragging an email onto the grid promotes it to a real, scheduled Google Task.
+    if (t.source === "gmail") {
+      const dur = t.est;
+      const localId = "n" + Date.now() + Math.floor(Math.random() * 99);
+      const converted: Task = { ...t, id: localId, source: "gtasks", scheduled: true, due: date, block: { date, start, end: start + dur } };
+      const tasks = s.tasks.map((x) => (x.id === taskId ? converted : x));
+      s.commit("Scheduled “" + t.title + "” · " + weekdayShort(date) + " " + fmtTime(start), { tasks });
+      if (isTauri && s.account) {
+        const notes = t.emailThreadId ? `[cadence-email:${t.emailThreadId}]` : null;
+        api
+          .createTask("@default", t.title, date, notes)
+          .then((dto) => {
+            useApp.setState((st) => ({ tasks: st.tasks.map((x) => (x.id === localId ? { ...x, id: dto.id, listId: dto.listId } : x)) }));
+            useApp.getState().syncBlock(dto.id);
+          })
+          .catch(() => {});
+      }
+      return;
+    }
+
     const dur = t.block ? t.block.end - t.block.start : t.est;
     const wasScheduled = !!t.block;
     // Scheduling a task sets its due date to the scheduled day — so an overdue
@@ -394,7 +415,7 @@ export const useApp = create<AppState>()(
     if (!isTauri) return;
     try {
       const dtos = await api.listTasks();
-      set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")], lists: listsFromDtos(dtos) }));
+      set((s) => ({ tasks: mergeSources(dtos.map(dtoToTask), s.tasks.filter((t) => t.source === "gmail")), lists: listsFromDtos(dtos) }));
     } catch (e) {
       console.error("loadTasks failed:", e);
       get().setToast("Couldn’t load Google Tasks — " + shortErr(e));
@@ -410,7 +431,7 @@ export const useApp = create<AppState>()(
     if (!isTauri) return;
     api
       .listTasks()
-      .then((dtos) => set((s) => ({ tasks: [...dtos.map(dtoToTask), ...s.tasks.filter((t) => t.source === "gmail")], lists: listsFromDtos(dtos) })))
+      .then((dtos) => set((s) => ({ tasks: mergeSources(dtos.map(dtoToTask), s.tasks.filter((t) => t.source === "gmail")), lists: listsFromDtos(dtos) })))
       .catch(() => {});
   },
 
@@ -432,8 +453,10 @@ export const useApp = create<AppState>()(
           completed: null,
           source: "gmail",
           meta: d.sender,
+          emailThreadId: d.threadId,
+          fromEmail: true,
         }));
-        set((st) => ({ tasks: [...st.tasks.filter((t) => t.source !== "gmail"), ...emails] }));
+        set((st) => ({ tasks: mergeSources(st.tasks.filter((t) => t.source !== "gmail"), emails) }));
       })
       .catch((e) => console.error("loadEmails failed:", e));
   },
@@ -523,8 +546,14 @@ export const useApp = create<AppState>()(
       x.id === id ? ({ ...x, status: completing ? "completed" : "needsAction", completed: completing ? nowLabel(s.now) : null } as Task) : x
     );
     set({ tasks });
-    if (isTauri && s.account && t.source === "gtasks" && t.listId) {
-      api.setTaskStatus(t.listId, id, completing).catch(() => s.setToast("Couldn’t sync to Google Tasks"));
+    if (isTauri && s.account) {
+      if (t.source === "gtasks" && t.listId) {
+        api.setTaskStatus(t.listId, id, completing).catch(() => s.setToast("Couldn’t sync to Google Tasks"));
+      }
+      // Completing an email-linked task archives the thread out of the inbox.
+      if (completing && t.emailThreadId) {
+        api.archiveEmail(t.emailThreadId).catch(() => {});
+      }
     }
   },
 
@@ -679,14 +708,29 @@ function dtoToTask(d: TaskDto): Task {
     id: d.id,
     title: d.title,
     project: d.listTitle,
-    cat: catFromProject(d.listTitle || d.title),
+    cat: d.fromEmail ? "email" : catFromProject(d.listTitle || d.title),
     est: 30,
     status: d.status,
     due: d.due,
     completed: d.completed ? fmtCompleted(d.completed) : null,
     source: "gtasks",
     listId: d.listId,
+    fromEmail: d.fromEmail || undefined,
+    emailThreadId: d.emailThreadId ?? undefined,
   };
+}
+
+/**
+ * Merge Google Tasks with Gmail-surfaced emails, deduping: an email is dropped
+ * when an email-linked task already represents it (same thread, or same subject).
+ */
+function mergeSources(gtasks: Task[], gmail: Task[]): Task[] {
+  const linkedThreads = new Set(gtasks.map((t) => t.emailThreadId).filter(Boolean) as string[]);
+  const linkedSubjects = new Set(gtasks.filter((t) => t.fromEmail).map((t) => t.title.trim().toLowerCase()));
+  const fresh = gmail.filter(
+    (e) => !(e.emailThreadId && linkedThreads.has(e.emailThreadId)) && !linkedSubjects.has(e.title.trim().toLowerCase())
+  );
+  return [...gtasks, ...fresh];
 }
 
 /** Create a just-added local task in Google Tasks, then swap in the real id. */

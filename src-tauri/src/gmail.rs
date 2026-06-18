@@ -1,5 +1,5 @@
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::google;
 
@@ -10,8 +10,25 @@ const BASE: &str = "https://gmail.googleapis.com/gmail/v1/users/me";
 #[serde(rename_all = "camelCase")]
 pub struct EmailDto {
     pub id: String,
+    pub thread_id: String,
     pub sender: String,
     pub subject: String,
+}
+
+/// Archive a thread (remove it from the inbox).
+pub fn archive(thread_id: &str) -> Result<(), String> {
+    let token = google::token()?;
+    let resp = google::client()
+        .post(format!("{BASE}/threads/{thread_id}/modify"))
+        .bearer_auth(&token)
+        .json(&json!({ "removeLabelIds": ["INBOX"] }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
 }
 
 /// Recent Primary-inbox messages from other people (approximating "needs reply").
@@ -26,6 +43,7 @@ pub fn unreplied() -> Result<Vec<EmailDto>, String> {
     let mut out = Vec::new();
     for m in list["messages"].as_array().unwrap_or(&empty) {
         let id = m["id"].as_str().unwrap_or_default().to_string();
+        let thread_id = m["threadId"].as_str().unwrap_or_default().to_string();
         if id.is_empty() {
             continue;
         }
@@ -51,7 +69,7 @@ pub fn unreplied() -> Result<Vec<EmailDto>, String> {
                 _ => {}
             }
         }
-        out.push(EmailDto { id, sender, subject });
+        out.push(EmailDto { id, thread_id, sender, subject });
     }
     Ok(out)
 }

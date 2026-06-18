@@ -17,6 +17,39 @@ pub struct TaskDto {
     pub due: Option<String>,           // YYYY-MM-DD
     pub completed: Option<String>,     // RFC3339
     pub notes: Option<String>,
+    pub from_email: bool,              // created from / linked to a Gmail message
+    pub email_thread_id: Option<String>, // best-effort Gmail thread id
+}
+
+/// Detect whether a task came from an email and recover its thread id.
+fn email_link(t: &Value) -> (bool, Option<String>) {
+    let mut from_email = false;
+    let mut thread_id = None;
+    if let Some(links) = t["links"].as_array() {
+        for l in links {
+            if l["type"].as_str() == Some("email") {
+                from_email = true;
+                if let Some(link) = l["link"].as_str() {
+                    let seg = link.rsplit('/').next().unwrap_or("");
+                    let seg = seg.split(['?', '#']).next().unwrap_or(seg);
+                    if !seg.is_empty() {
+                        thread_id = Some(seg.to_string());
+                    }
+                }
+            }
+        }
+    }
+    // Cadence stores the real thread id in notes when it creates the task itself.
+    if let Some(notes) = t["notes"].as_str() {
+        if let Some(p) = notes.find("[cadence-email:") {
+            let rest = &notes[p + "[cadence-email:".len()..];
+            if let Some(end) = rest.find(']') {
+                from_email = true;
+                thread_id = Some(rest[..end].to_string());
+            }
+        }
+    }
+    (from_email, thread_id)
 }
 
 /// Read every task across all of the user's task lists.
@@ -44,6 +77,7 @@ pub fn list() -> Result<Vec<TaskDto>, String> {
             if id.is_empty() || title.is_empty() {
                 continue; // skip section headers / blanks
             }
+            let (from_email, email_thread_id) = email_link(t);
             out.push(TaskDto {
                 id,
                 list_id: list_id.clone(),
@@ -53,6 +87,8 @@ pub fn list() -> Result<Vec<TaskDto>, String> {
                 due: t["due"].as_str().and_then(google::date_part),
                 completed: t["completed"].as_str().map(|s| s.to_string()),
                 notes: t["notes"].as_str().map(|s| s.to_string()),
+                from_email,
+                email_thread_id,
             });
         }
     }
@@ -131,12 +167,16 @@ pub fn delete(list_id: &str, id: &str) -> Result<(), String> {
     }
 }
 
-/// Create a task in a list (use "@default" for the default list).
-pub fn create(list_id: &str, title: &str, due: Option<String>) -> Result<TaskDto, String> {
+/// Create a task in a list (use "@default" for the default list). `notes` may
+/// carry a `[cadence-email:<threadId>]` marker for email-derived tasks.
+pub fn create(list_id: &str, title: &str, due: Option<String>, notes: Option<String>) -> Result<TaskDto, String> {
     let token = google::token()?;
     let mut body = json!({ "title": title });
     if let Some(d) = &due {
         body["due"] = json!(format!("{d}T00:00:00.000Z"));
+    }
+    if let Some(n) = &notes {
+        body["notes"] = json!(n);
     }
     let t: Value = google::client()
         .post(format!("{BASE}/lists/{list_id}/tasks"))
@@ -147,6 +187,7 @@ pub fn create(list_id: &str, title: &str, due: Option<String>) -> Result<TaskDto
         .json()
         .map_err(|e| e.to_string())?;
 
+    let (from_email, email_thread_id) = email_link(&t);
     Ok(TaskDto {
         id: t["id"].as_str().unwrap_or_default().to_string(),
         list_id: list_id.to_string(),
@@ -155,6 +196,8 @@ pub fn create(list_id: &str, title: &str, due: Option<String>) -> Result<TaskDto
         status: t["status"].as_str().unwrap_or("needsAction").to_string(),
         due: t["due"].as_str().and_then(google::date_part).or(due),
         completed: None,
-        notes: None,
+        notes,
+        from_email,
+        email_thread_id,
     })
 }

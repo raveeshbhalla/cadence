@@ -23,6 +23,10 @@ export interface Task {
   completed: string | null;
   source: TaskSource;
   meta?: string; // email sender meta
+  /** Linked Gmail thread (email-derived task or surfaced email). */
+  emailThreadId?: string;
+  /** True when this task is linked to / derived from an email. */
+  fromEmail?: boolean;
   /** Google Tasks list id this task belongs to (for write-back). */
   listId?: string;
   /** Google Calendar event id backing this task's time block (for write-back). */

@@ -21,6 +21,8 @@ export interface TaskDto {
   due: string | null; // YYYY-MM-DD
   completed: string | null; // RFC3339
   notes: string | null;
+  fromEmail: boolean;
+  emailThreadId: string | null;
 }
 
 export interface EventDto {
@@ -46,6 +48,7 @@ export interface CalendarDto {
 
 export interface EmailDto {
   id: string;
+  threadId: string;
   sender: string;
   subject: string;
 }
@@ -105,8 +108,8 @@ export const api = {
     return invoke<void>("task_set_status", { listId, id, completed });
   },
 
-  async createTask(listId: string, title: string, due: string | null): Promise<TaskDto> {
-    return invoke<TaskDto>("task_create", { listId, title, due });
+  async createTask(listId: string, title: string, due: string | null, notes: string | null = null): Promise<TaskDto> {
+    return invoke<TaskDto>("task_create", { listId, title, due, notes });
   },
 
   async setTaskTitle(listId: string, id: string, title: string): Promise<void> {
@@ -154,6 +157,12 @@ export const api = {
   async listEmails(): Promise<EmailDto[]> {
     if (!isTauri) return [];
     return invoke<EmailDto[]>("gmail_unreplied");
+  },
+
+  /** Archive a Gmail thread (remove it from the inbox). */
+  async archiveEmail(threadId: string): Promise<void> {
+    if (!isTauri) return;
+    return invoke<void>("gmail_archive", { threadId });
   },
 
   /** Parse a capture line with the model. Throws if unavailable. */

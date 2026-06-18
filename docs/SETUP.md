@@ -30,7 +30,8 @@ Create credentials in the [Google Cloud Console](https://console.cloud.google.co
      - `openid`, `email`, `profile`
      - `https://www.googleapis.com/auth/calendar`
      - `https://www.googleapis.com/auth/tasks`
-     - `https://www.googleapis.com/auth/gmail.readonly`
+     - `https://www.googleapis.com/auth/gmail.modify` (read inbox + archive a
+       thread when its task is completed)
    - While the app is in **Testing**, add your Google account under **Test users**
      (otherwise consent is blocked).
 

@@ -59,8 +59,8 @@ async fn task_set_status(list_id: String, id: String, completed: bool) -> Result
 }
 
 #[tauri::command]
-async fn task_create(list_id: String, title: String, due: Option<String>) -> Result<TaskDto, String> {
-    tauri::async_runtime::spawn_blocking(move || tasks::create(&list_id, &title, due))
+async fn task_create(list_id: String, title: String, due: Option<String>, notes: Option<String>) -> Result<TaskDto, String> {
+    tauri::async_runtime::spawn_blocking(move || tasks::create(&list_id, &title, due, notes))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -127,6 +127,11 @@ async fn event_delete(event_id: String) -> Result<(), String> {
 #[tauri::command]
 async fn gmail_unreplied() -> Result<Vec<EmailDto>, String> {
     tauri::async_runtime::spawn_blocking(gmail::unreplied).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn gmail_archive(thread_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || gmail::archive(&thread_id)).await.map_err(|e| e.to_string())?
 }
 
 // ── OpenAI capture parsing ────────────────────────────────────────
@@ -213,6 +218,7 @@ pub fn run() {
             event_set_title,
             event_delete,
             gmail_unreplied,
+            gmail_archive,
             ai_parse,
         ])
         .run(tauri::generate_context!())
