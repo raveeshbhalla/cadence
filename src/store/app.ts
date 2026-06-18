@@ -23,7 +23,7 @@ import type { CategoryKey, Density } from "../theme";
 type GridLike = { id: string; start: number; end: number; title: string; cat: CategoryKey };
 import { DEFAULT_ACCENT, END_HOUR, pxPerHour } from "../theme";
 import { makeSeed } from "../data/seed";
-import { addDays, dateKey, defaultWeekMonday, diffDays, isoAt, mondayOf, monthShort, nowMinutes, parseKey, todayKey, weekdayShort } from "../lib/dates";
+import { addDays, dateKey, defaultWeekMonday, diffDays, isoAt, mondayOf, monthShort, nowMinutes, parseKey, todayKey, weekDates, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
 import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
@@ -62,6 +62,9 @@ export interface AppState {
   now: number; // minutes from local midnight
   today: string; // YYYY-MM-DD
   viewMonday: string; // Monday of the displayed week
+  view: "day" | "week";
+  focusDay: string; // the single day shown in day view
+  showWeekends: boolean; // week view shows 7 days vs Mon–Fri
 
   // chrome
   sidebarHidden: boolean;
@@ -169,6 +172,8 @@ export interface AppState {
   gotoToday: () => void;
   prevWeek: () => void;
   nextWeek: () => void;
+  setView: (v: "day" | "week") => void;
+  toggleWeekends: () => void;
   shareAvailability: () => void;
   addAvailabilitySlot: (date: string, start: number, end: number) => void;
   removeAvailabilitySlot: (index: number) => void;
@@ -200,6 +205,9 @@ export const useApp = create<AppState>()(
   now: nowMinutes(),
   today: INITIAL_TODAY,
   viewMonday: INITIAL_MONDAY,
+  view: "week",
+  focusDay: INITIAL_TODAY,
+  showWeekends: false,
 
   sidebarHidden: false,
   archivedShown: false,
@@ -704,17 +712,27 @@ export const useApp = create<AppState>()(
   setInteraction: (partial) => set(partial as Partial<AppState>),
 
   gotoToday: () => {
-    set({ viewMonday: defaultWeekMonday() });
+    set({ viewMonday: defaultWeekMonday(), focusDay: todayKey() });
     get().loadCalendar();
   },
   prevWeek: () => {
-    set((s) => ({ viewMonday: addDays(s.viewMonday, -7) }));
+    set((s) => (s.view === "day" ? { focusDay: addDays(s.focusDay, -1), viewMonday: mondayOf(parseKey(addDays(s.focusDay, -1))) } : { viewMonday: addDays(s.viewMonday, -7) }));
     get().loadCalendar();
   },
   nextWeek: () => {
-    set((s) => ({ viewMonday: addDays(s.viewMonday, 7) }));
+    set((s) => (s.view === "day" ? { focusDay: addDays(s.focusDay, 1), viewMonday: mondayOf(parseKey(addDays(s.focusDay, 1))) } : { viewMonday: addDays(s.viewMonday, 7) }));
     get().loadCalendar();
   },
+  setView: (v) =>
+    set((s) => {
+      if (v === "day") {
+        const wk = weekDates(s.viewMonday, 7);
+        const fd = wk.includes(s.today) ? s.today : s.viewMonday;
+        return { view: "day", focusDay: fd };
+      }
+      return { view: "week", viewMonday: mondayOf(parseKey(s.focusDay)) };
+    }),
+  toggleWeekends: () => set((s) => ({ showWeekends: !s.showWeekends })),
   // Enter availability mode: drag the grid to collect open slots, then copy them.
   shareAvailability: () =>
     set({ availabilityMode: true, availabilitySlots: [], availabilityLabel: "", modal: null, toast: { msg: "Drag across the calendar to offer time slots", undo: false } }),
@@ -782,6 +800,7 @@ export const useApp = create<AppState>()(
         archivedShown: s.archivedShown,
         hiddenCals: s.hiddenCals,
         hiddenLists: s.hiddenLists,
+        showWeekends: s.showWeekends,
       }),
     }
   )
@@ -880,5 +899,11 @@ export const getOpSnap = () => opSnap;
 export const clearOpSnap = () => {
   opSnap = null;
 };
+
+/** The date keys currently shown on the grid (1 for day view, 5 or 7 for week). */
+export function displayedDays(s: Pick<AppState, "view" | "focusDay" | "viewMonday" | "showWeekends">): string[] {
+  if (s.view === "day") return [s.focusDay];
+  return weekDates(s.viewMonday, s.showWeekends ? 7 : 5);
+}
 
 export { fmtDur, usePointer };

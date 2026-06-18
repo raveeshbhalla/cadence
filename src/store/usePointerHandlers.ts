@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { END_HOUR, START_HOUR, pxPerHour } from "../theme";
 import { fmtDur, fmtTime, isPast, yToMin, yToMinRaw } from "../lib/format";
-import { weekDates, weekdayShort } from "../lib/dates";
+import { weekdayShort } from "../lib/dates";
 import type { AppState } from "./app";
 import type { DropTarget } from "../types";
-import { clearOpSnap, getOpSnap, useApp } from "./app";
+import { clearOpSnap, displayedDays, getOpSnap, useApp } from "./app";
 import { usePointer } from "./pointer";
 
 const THRESH = 5;
@@ -50,7 +50,7 @@ export function usePointerHandlers() {
     const onMove = (e: PointerEvent) => {
       const s = useApp.getState();
       const px = pxPerHour(s.density);
-      const week = weekDates(s.viewMonday);
+      const week = displayedDays(s);
 
       // ── resize (task block or meeting) ──
       const rz = s.resize;
@@ -125,7 +125,7 @@ export function usePointerHandlers() {
     const onUp = (e: PointerEvent) => {
       const s = useApp.getState();
       const px = pxPerHour(s.density);
-      const week = weekDates(s.viewMonday);
+      const week = displayedDays(s);
 
       // resize commit
       if (s.resize) {

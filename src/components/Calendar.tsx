@@ -2,10 +2,10 @@ import { useMemo, type PointerEvent } from "react";
 import { ACCENT_FG, C, CATS, END_HOUR, START_HOUR, pxPerHour } from "../theme";
 import type { DropTarget, GridItem, SelDragState } from "../types";
 import { fmtTime } from "../lib/format";
-import { dayOfMonth, monthLabel, weekDates, weekdayShort } from "../lib/dates";
+import { dayOfMonth, monthLabel, weekdayShort } from "../lib/dates";
 import { pack } from "../lib/pack";
 import { dayLoad } from "../store/selectors";
-import { useApp } from "../store/app";
+import { displayedDays, useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
 import { ChevronLeft, ChevronRight } from "./Icon";
 
@@ -227,6 +227,10 @@ export function Calendar() {
   const today = useApp((s) => s.today);
   const showEmail = useApp((s) => s.showEmail);
   const viewMonday = useApp((s) => s.viewMonday);
+  const view = useApp((s) => s.view);
+  const focusDay = useApp((s) => s.focusDay);
+  const showWeekends = useApp((s) => s.showWeekends);
+  const setView = useApp((s) => s.setView);
   const dropTarget = useApp((s) => s.dropTarget);
   const selDrag = useApp((s) => s.selDrag);
   const availabilitySlots = useApp((s) => s.availabilitySlots);
@@ -238,7 +242,7 @@ export function Calendar() {
 
   const px = pxPerHour(density);
   const dragging = dragActive || eventDragActive;
-  const week = useMemo(() => weekDates(viewMonday), [viewMonday]);
+  const week = useMemo(() => displayedDays({ view, focusDay, viewMonday, showWeekends }), [view, focusDay, viewMonday, showWeekends]);
   const availByDay = useMemo(
     () => week.map((date) => availabilitySlots.map((sl, i) => ({ sl, i })).filter((x) => x.sl.date === date)),
     [week, availabilitySlots]
@@ -283,11 +287,12 @@ export function Calendar() {
     });
   }, [events, tasks, hiddenCals, hiddenLists, px, week]);
 
-  const switchPill = (label: string, active: boolean) => (
-    <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, color: active ? ACCENT_FG : C.textFaint, fontWeight: active ? 600 : 400, background: active ? accent : "transparent" }}>{label}</span>
+  const switchPill = (label: string, active: boolean, onClick: () => void) => (
+    <span onClick={onClick} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, cursor: "pointer", color: active ? ACCENT_FG : C.textFaint, fontWeight: active ? 600 : 400, background: active ? accent : "transparent" }}>{label}</span>
   );
 
-  const [monthName, yearStr] = monthLabel(week[2]).split(" ");
+  const midDay = week[Math.floor((week.length - 1) / 2)] || today;
+  const [monthName, yearStr] = monthLabel(midDay).split(" ");
   const load = useMemo(() => dayLoad({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
   const conflicts = useMemo(() => perDay.reduce((n, day) => n + day.filter((pi) => pi.item.conflict).length, 0), [perDay]);
   const allDayByDay = useMemo(
@@ -329,9 +334,8 @@ export function Calendar() {
             {load.overflow ? load.overflowLabel : `${load.freeLabel} free today`}
           </span>
           <div style={{ display: "flex", gap: 4, background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 2 }}>
-            {switchPill("Day", false)}
-            {switchPill("Week", true)}
-            {switchPill("Month", false)}
+            {switchPill("Day", view === "day", () => setView("day"))}
+            {switchPill("Week", view === "week", () => setView("week"))}
           </div>
         </div>
       </div>

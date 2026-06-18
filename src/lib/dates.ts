@@ -43,9 +43,9 @@ export function mondayOf(d: Date): string {
   return dateKey(x);
 }
 
-/** The five Mon–Fri keys of the week starting at `mondayKey`. */
-export function weekDates(mondayKey: string): string[] {
-  return [0, 1, 2, 3, 4].map((i) => addDays(mondayKey, i));
+/** The Mon-onward keys of the week starting at `mondayKey` (5 = Mon–Fri, 7 = full). */
+export function weekDates(mondayKey: string, count = 5): string[] {
+  return Array.from({ length: count }, (_, i) => addDays(mondayKey, i));
 }
 
 /** Default week to show: current week, or the upcoming Monday on weekends. */
