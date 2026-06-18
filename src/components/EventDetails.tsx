@@ -1,6 +1,7 @@
 import { C } from "../theme";
 import { fmtTime } from "../lib/format";
 import { monthShort, parseKey, weekdayShort } from "../lib/dates";
+import { meetingLink } from "../lib/meeting";
 import { api } from "../lib/api";
 import { useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
@@ -15,6 +16,7 @@ export function EventDetails() {
   const d = parseKey(ev.date);
   const when = `${weekdayShort(ev.date)}, ${monthShort(ev.date)} ${d.getDate()} · ${fmtTime(ev.start)} – ${fmtTime(ev.end)}`;
   const color = ev.color || "#5B9BFF";
+  const join = meetingLink(ev);
 
   const row = (icon: string, content: React.ReactNode) => (
     <div style={{ display: "flex", gap: 12, padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
@@ -45,8 +47,8 @@ export function EventDetails() {
           <Hoverable as="button" onClick={() => addBufferAfter(ev.id)} title="Add a short transition block after this" style={{ background: C.rowHover, border: "1px solid rgba(255,255,255,0.08)", color: C.textMute, fontSize: 12.5, borderRadius: 9, padding: "10px 14px", cursor: "pointer", flex: "none" }} hover={{ background: "#222630", color: "#fff" }}>
             + Buffer after
           </Hoverable>
-          {ev.hangoutLink && (
-            <Hoverable as="button" onClick={() => ev.hangoutLink && api.openUrl(ev.hangoutLink)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flex: 1, background: "#1A8A4F", border: "none", borderRadius: 9, padding: "10px", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }} hover={{ filter: "brightness(1.1)" }}>
+          {join && (
+            <Hoverable as="button" onClick={() => api.openUrl(join)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flex: 1, background: "#1A8A4F", border: "none", borderRadius: 9, padding: "10px", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }} hover={{ filter: "brightness(1.1)" }}>
               Join meeting
             </Hoverable>
           )}

@@ -26,6 +26,7 @@ import { makeSeed } from "../data/seed";
 import { addDays, dateKey, defaultWeekMonday, diffDays, isoAt, mondayOf, monthShort, nowMinutes, parseKey, todayKey, weekDates, weekdayShort } from "../lib/dates";
 import { catFromProject, fmtDur, fmtTime, isPast, nowLabel, yToMinRaw } from "../lib/format";
 import { parseCapture } from "../lib/parse";
+import { meetingLink } from "../lib/meeting";
 import { api, isTauri, type EmailDto, type EventDto, type TaskDto } from "../lib/api";
 import { usePointer } from "./pointer";
 
@@ -285,15 +286,14 @@ export const useApp = create<AppState>()(
   joinNextMeeting: () => {
     const s = get();
     const next = s.events
-      .filter((e) => e.hangoutLink)
-      .map((e) => ({ e, abs: diffDays(e.date, s.today) * 1440 + e.start, absEnd: diffDays(e.date, s.today) * 1440 + e.end }))
-      .filter((x) => x.absEnd > s.now)
+      .map((e) => ({ e, link: meetingLink(e), abs: diffDays(e.date, s.today) * 1440 + e.start, absEnd: diffDays(e.date, s.today) * 1440 + e.end }))
+      .filter((x) => x.link && x.absEnd > s.now)
       .sort((a, b) => a.abs - b.abs)[0];
     if (!next) {
       s.setToast("No upcoming meeting with a join link");
       return;
     }
-    api.openUrl(next.e.hangoutLink!);
+    api.openUrl(next.link!);
     s.setToast("Joining " + next.e.title);
   },
 
