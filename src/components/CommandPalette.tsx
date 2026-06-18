@@ -30,6 +30,7 @@ export function CommandPalette() {
       { id: "today", name: "Go to today", hint: "T", glyph: "◆", run: () => { s.closeModal(); s.gotoToday(); } },
       { id: "goto", name: "Go to date…", hint: "G", glyph: "◷", run: () => s.openGoto() },
       { id: "shortcuts", name: "Keyboard shortcuts", hint: "?", glyph: "⌘", run: () => s.openShortcuts() },
+      { id: "roll", name: "Roll overdue tasks to today", hint: "", glyph: "↻", run: () => { s.closeModal(); s.rollOverdue(); } },
       { id: "clear", name: "Clear completed", hint: "", glyph: "✓", run: () => { s.clearCompleted(); s.closeModal(); s.setToast("Cleared completed"); } },
       { id: "settings", name: "Settings", hint: "", glyph: "⚙", run: () => s.openSettings() },
     ];

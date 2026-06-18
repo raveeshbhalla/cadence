@@ -153,6 +153,7 @@ export interface AppState {
   /** Push a task's due date to Google Tasks. */
   syncTaskDue: (taskId: string) => void;
   clearCompleted: () => void;
+  rollOverdue: () => void;
 
   // drag lifecycle
   startTaskDrag: (payload: DragPayload, x: number, y: number) => void;
@@ -489,6 +490,22 @@ export const useApp = create<AppState>()(
   },
 
   clearCompleted: () => set((s) => ({ tasks: s.tasks.filter((t) => t.status !== "completed") })),
+
+  // Bump every unscheduled overdue task's due date to today (undoable + synced).
+  rollOverdue: () => {
+    const s = get();
+    const overdue = s.tasks.filter((t) => t.status !== "completed" && t.source !== "gmail" && !t.block && t.due != null && t.due < s.today);
+    if (!overdue.length) {
+      s.setToast("No overdue tasks to roll");
+      return;
+    }
+    const ids = new Set(overdue.map((t) => t.id));
+    const tasks = s.tasks.map((t) => (ids.has(t.id) ? { ...t, due: s.today } : t));
+    s.commit(`Rolled ${overdue.length} overdue task${overdue.length > 1 ? "s" : ""} to today`, { tasks });
+    if (isTauri && s.account) {
+      for (const t of overdue) if (t.listId) api.setTaskDue(t.listId, t.id, s.today).catch(() => {});
+    }
+  },
 
   toggleSidebar: () => set((s) => ({ sidebarHidden: !s.sidebarHidden })),
   toggleArchived: () => set((s) => ({ archivedShown: !s.archivedShown })),

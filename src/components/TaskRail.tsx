@@ -108,6 +108,7 @@ export function TaskRail() {
   const archivedShown = useApp((s) => s.archivedShown);
   const toggleArchived = useApp((s) => s.toggleArchived);
   const toggleTask = useApp((s) => s.toggleTask);
+  const rollOverdue = useApp((s) => s.rollOverdue);
 
   const { sections, archived } = useMemo(
     () => buildRail({ tasks, showEmail, now, today, hiddenLists }),
@@ -127,6 +128,11 @@ export function TaskRail() {
             <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 8px 5px" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: sec.color || C.textMute2 }}>{sec.label}</span>
               <span style={{ fontSize: 11, color: sec.color || C.textMute2, background: sec.color ? "rgba(229,115,107,0.14)" : "rgba(255,255,255,0.07)", borderRadius: 20, padding: "1px 7px" }}>{sec.rows.length}</span>
+              {sec.label === "Overdue" && (
+                <Hoverable as="button" onClick={rollOverdue} title="Move overdue tasks to today" style={{ marginLeft: "auto", background: "none", border: "none", color: C.overdue, fontSize: 11, cursor: "pointer" }} hover={{ color: "#fff" }}>
+                  → Today
+                </Hoverable>
+              )}
             </div>
             {sec.rows.map((row) => (
               <Row key={row.key} row={row} accent={accent} />
