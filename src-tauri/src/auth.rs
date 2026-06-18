@@ -18,6 +18,11 @@ const SCOPES: &str = "openid email profile https://www.googleapis.com/auth/calen
 const KEYRING_SERVICE: &str = "com.cadence.app";
 const KEYRING_USER: &str = "google-tokens";
 
+/// Fixed loopback redirect port. Must be registered as an Authorized redirect
+/// URI on the OAuth client: `http://127.0.0.1:8765` (a "Web application" client
+/// requires this; a "Desktop app" client accepts any loopback port regardless).
+const REDIRECT_PORT: u16 = 8765;
+
 /// Persisted token set (stored as JSON in the OS keychain).
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StoredTokens {
@@ -101,10 +106,10 @@ pub fn sign_in() -> Result<Account, String> {
     let challenge = b64url(Sha256::digest(verifier.as_bytes()).as_slice());
     let state = random_b64(24);
 
-    // Loopback listener on a random port.
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
-    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    let redirect = format!("http://127.0.0.1:{port}");
+    // Loopback listener on a fixed, registered port.
+    let listener = TcpListener::bind(("127.0.0.1", REDIRECT_PORT))
+        .map_err(|e| format!("couldn't bind 127.0.0.1:{REDIRECT_PORT} ({e}). Close whatever is using it and retry."))?;
+    let redirect = format!("http://127.0.0.1:{REDIRECT_PORT}");
 
     let auth_url = format!(
         "{AUTH_ENDPOINT}?client_id={cid}&redirect_uri={redirect}&response_type=code&scope={scope}&code_challenge={challenge}&code_challenge_method=S256&access_type=offline&prompt=consent&state={state}",
