@@ -1,10 +1,48 @@
 import { useMemo, type PointerEvent } from "react";
-import { C, CATS } from "../theme";
+import { ACCENT_FG, C, CATS } from "../theme";
 import { useApp } from "../store/app";
-import { buildRail, chipLabelFor, type RailRow } from "../store/selectors";
+import { buildRail, chipLabelFor, nowFocus, type RailRow } from "../store/selectors";
 import { fmtDur } from "../lib/format";
 import { Hoverable } from "./Hoverable";
 import { Check, Mail } from "./Icon";
+
+function FocusBar() {
+  const accent = useApp((s) => s.accent);
+  const tasks = useApp((s) => s.tasks);
+  const events = useApp((s) => s.events);
+  const now = useApp((s) => s.now);
+  const today = useApp((s) => s.today);
+  const showEmail = useApp((s) => s.showEmail);
+  const hiddenLists = useApp((s) => s.hiddenLists);
+  const placeTask = useApp((s) => s.placeTask);
+
+  const f = useMemo(() => nowFocus({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
+  const heading = { in: "Now", next: "Up next", do: "Do now", clear: "Clear" }[f.kind];
+  const tint = f.kind === "in" ? "#57C77E" : f.kind === "do" ? accent : f.kind === "clear" ? C.textFaint2 : C.textMute;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "9px 11px", background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: tint, flex: "none" }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: tint }}>{heading}</div>
+        <div style={{ fontSize: 13, color: C.text3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {f.title}
+          {f.sub && <span style={{ color: C.textMute2 }}> · {f.sub}</span>}
+        </div>
+      </div>
+      {f.kind === "do" && f.taskId && (
+        <Hoverable
+          as="button"
+          onClick={() => placeTask(f.taskId!, today, Math.min(21 * 60, Math.ceil(now / 15) * 15))}
+          style={{ background: accent, color: ACCENT_FG, fontSize: 12, fontWeight: 600, border: "none", borderRadius: 7, padding: "5px 11px", cursor: "pointer", flex: "none" }}
+          hover={{ filter: "brightness(0.94)" }}
+        >
+          Start now
+        </Hoverable>
+      )}
+    </div>
+  );
+}
 
 function Row({ row, accent }: { row: RailRow; accent: string }) {
   const startTaskDrag = useApp((s) => s.startTaskDrag);
@@ -80,6 +118,7 @@ export function TaskRail() {
     <div style={{ width: 352, flex: "none", background: C.windowBg, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "18px 18px 14px", flex: "none", borderBottom: `1px solid ${C.borderSoft}` }}>
         <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", color: C.text }}>Tasks</div>
+        <FocusBar />
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "6px 12px 24px" }}>

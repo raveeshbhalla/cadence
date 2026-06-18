@@ -1,7 +1,7 @@
 import { END_HOUR } from "../theme";
 import type { CategoryKey } from "../theme";
 import type { Task } from "../types";
-import { type BucketKey, bucketKey, chipLabelFor, fmtDur, isPastEvent, overdueLabel } from "../lib/format";
+import { type BucketKey, bucketKey, chipLabelFor, fmtDur, fmtTime, isPastEvent, overdueLabel } from "../lib/format";
 import { diffDays } from "../lib/dates";
 import type { AppState } from "./app";
 
@@ -110,6 +110,46 @@ export interface DayLoad {
   overflow: boolean;
   overflowLabel: string;
   taskCount: number;
+}
+
+export interface NowFocus {
+  kind: "in" | "next" | "do" | "clear";
+  title: string;
+  sub: string;
+  taskId?: string;
+}
+
+/** What to pay attention to right now: current activity, next up, or a task to start. */
+export function nowFocus(s: Pick<AppState, "tasks" | "events" | "now" | "today" | "showEmail" | "hiddenLists">): NowFocus {
+  const { now, today } = s;
+  const hiddenLists = s.hiddenLists || [];
+  const todayItems = [
+    ...s.events.filter((e) => e.date === today).map((e) => ({ start: e.start, end: e.end, title: e.title })),
+    ...s.tasks
+      .filter((t) => t.block && t.block.date === today && t.status !== "completed")
+      .map((t) => ({ start: t.block!.start, end: t.block!.end, title: t.title })),
+  ];
+
+  const cur = todayItems.find((it) => it.start <= now && now < it.end);
+  if (cur) return { kind: "in", title: cur.title, sub: `ends in ${fmtDur(cur.end - now)}` };
+
+  const next = todayItems.filter((it) => it.start > now).sort((a, b) => a.start - b.start)[0];
+  if (next) {
+    const mins = next.start - now;
+    return { kind: "next", title: next.title, sub: mins < 60 ? `in ${mins}m` : `at ${fmtTime(next.start)}` };
+  }
+
+  const task = s.tasks
+    .filter((t) => {
+      if (t.status === "completed" || t.scheduled) return false;
+      if (t.listId && hiddenLists.includes(t.listId)) return false;
+      if (t.source === "gmail") return false;
+      return t.due != null && t.due <= today;
+    })
+    .sort((a, b) => (a.due! < b.due! ? -1 : a.due! > b.due! ? 1 : b.est - a.est))[0];
+  if (task) return { kind: "do", title: task.title, sub: `~${fmtDur(task.est)}`, taskId: task.id };
+
+  return { kind: "clear", title: "All caught up", sub: "nothing scheduled or due" };
 }
 
 /** Today's commitment: unscheduled work to do vs. free time left in the day. */
