@@ -5,6 +5,7 @@ import { type BucketKey, bucketKey, chipLabelFor, fmtDur, fmtTime, isPastEvent, 
 import { diffDays } from "../lib/dates";
 import { taskListKey } from "../lib/taskLists";
 import type { AppState } from "./app";
+import type { RailMoveKey } from "../types";
 
 export interface RailRow {
   key: string;
@@ -27,6 +28,7 @@ export interface RailSection {
   label: string;
   rows: RailRow[];
   color: string | null;
+  dropKey: RailMoveKey | "overdue" | "email";
 }
 
 /** True when a task is placed on the grid in the past and still open. */
@@ -90,16 +92,17 @@ export function buildRail(s: Pick<AppState, "tasks" | "showEmail" | "now" | "tod
 
   const emailRows = act.filter((t) => t.source === "gmail").map((t) => rowFromTask(t, "email", false, today));
 
-  const sections: RailSection[] = [
-    { label: "Overdue", rows: overdue, color: "#E5736B" },
-    { label: "Today", rows: buckets.today, color: null },
-    { label: "Email · needs reply", rows: s.showEmail ? emailRows : [], color: null },
-    { label: "Inbox", rows: buckets.inbox, color: null },
-    { label: "Tomorrow", rows: buckets.tomorrow, color: null },
-    { label: "This week", rows: buckets.thisweek, color: null },
-    { label: "Next week", rows: buckets.nextweek, color: null },
-    { label: "Later", rows: buckets.later, color: null },
-  ].filter((sec) => sec.rows.length > 0);
+  const allSections: RailSection[] = [
+    { label: "Overdue", rows: overdue, color: "#E5736B", dropKey: "overdue" },
+    { label: "Today", rows: buckets.today, color: null, dropKey: "today" },
+    { label: "Email · needs reply", rows: s.showEmail ? emailRows : [], color: null, dropKey: "email" },
+    { label: "No date", rows: buckets.inbox, color: null, dropKey: "inbox" },
+    { label: "Tomorrow", rows: buckets.tomorrow, color: null, dropKey: "tomorrow" },
+    { label: "This week", rows: buckets.thisweek, color: null, dropKey: "thisweek" },
+    { label: "Next week", rows: buckets.nextweek, color: null, dropKey: "nextweek" },
+    { label: "Later", rows: buckets.later, color: null, dropKey: "later" },
+  ];
+  const sections = allSections.filter((sec) => sec.rows.length > 0);
 
   const archived = visible.filter((t) => t.status === "completed").map((t) => rowFromTask(t, "done", false, today));
   return { sections, archived };
@@ -117,10 +120,9 @@ export interface DayLoad {
 }
 
 export interface NowFocus {
-  kind: "in" | "next" | "do" | "clear";
+  kind: "in" | "next" | "triage" | "clear";
   title: string;
   sub: string;
-  taskId?: string;
 }
 
 /** What to pay attention to right now: current activity, next up, or a task to start. */
@@ -143,16 +145,20 @@ export function nowFocus(s: Pick<AppState, "tasks" | "events" | "now" | "today" 
     return { kind: "next", title: next.title, sub: mins < 60 ? `in ${mins}m` : `at ${fmtTime(next.start)}` };
   }
 
-  const task = s.tasks
-    .filter((t) => {
+  const triageable = s.tasks.filter((t) => {
       if (t.status === "completed" || t.scheduled) return false;
       const key = taskListKey(t);
       if (key && hiddenLists.includes(key)) return false;
-      if (t.source === "gmail") return false;
+      if (t.source === "gmail") return s.showEmail;
       return t.due != null && t.due <= today;
-    })
-    .sort((a, b) => (a.due! < b.due! ? -1 : a.due! > b.due! ? 1 : b.est - a.est))[0];
-  if (task) return { kind: "do", title: task.title, sub: `~${fmtDur(task.est)}`, taskId: task.id };
+    });
+  if (triageable.length) {
+    return {
+      kind: "triage",
+      title: "Triage today’s work",
+      sub: `${triageable.length} item${triageable.length > 1 ? "s" : ""} to place`,
+    };
+  }
 
   return { kind: "clear", title: "All caught up", sub: "nothing scheduled or due" };
 }

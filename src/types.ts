@@ -17,7 +17,7 @@ export interface Task {
   cat: CategoryKey;
   est: number; // minutes (estimate; default block duration)
   status: TaskStatus;
-  /** Due date as a local YYYY-MM-DD key. null = inbox. */
+  /** Due date as a local YYYY-MM-DD key. null = no date / unscheduled. */
   due: string | null;
   /** Human label set when completed (e.g. "today, 8:42 AM"). */
   completed: string | null;
@@ -31,8 +31,6 @@ export interface Task {
   fromEmail?: boolean;
   /** Google Tasks list id this task belongs to (for write-back). */
   listId?: string;
-  /** Google Calendar event id backing this task's time block (for write-back). */
-  eventId?: string;
   /** True when placed on the grid. Mirrors `block != null`. */
   scheduled?: boolean;
   /** The grid slot, when scheduled. A task + block is one shared record. */
@@ -53,15 +51,20 @@ export interface CalEvent {
   description?: string;
   hangoutLink?: string;
   timeZone?: string;
+  responseStatus?: "needsAction" | "declined" | "tentative" | "accepted";
+  canRsvp?: boolean;
 }
 
 /** An all-day calendar item (birthday, PTO, deadline), shown in the banner lane. */
 export interface AllDayEvent {
   id: string;
+  /** Real Google Calendar event id. `id` may include a per-day suffix for multi-day rendering. */
+  eventId?: string;
   date: string; // local YYYY-MM-DD (one entry per covered day)
   title: string;
   color?: string;
   calendarId?: string;
+  responseStatus?: "needsAction" | "declined" | "tentative" | "accepted";
 }
 
 export interface CalendarMeta {
@@ -93,8 +96,10 @@ export interface GridItem {
   done: boolean;
   /** Calendar colour for meetings (task blocks use their category colour). */
   color?: string;
-  /** This meeting overlaps another meeting (double-booked). */
+  /** This meeting conflicts with another meeting (double-booked). */
   conflict?: boolean;
+  /** The signed-in user RSVP'd no to this meeting. */
+  declined?: boolean;
 }
 
 // ── Transient interaction state ──────────────────────────────────
@@ -105,6 +110,8 @@ export interface DragPayload {
   title: string;
   est: number; // ghost duration
   cat: CategoryKey;
+  source?: "task" | "allDayEvent";
+  calendarId?: string;
   done?: boolean;
 }
 
@@ -115,6 +122,14 @@ export interface DragState {
   x0: number;
   y0: number;
   active: boolean;
+}
+
+export type RailMoveKey = "inbox" | "today" | "tomorrow" | "thisweek" | "nextweek" | "later";
+
+export interface RailDropTarget {
+  key: string;
+  label: string;
+  valid: boolean;
 }
 
 export interface EventDragState {
@@ -158,6 +173,7 @@ export interface ToastState {
 
 export interface UndoSnapshot {
   events: CalEvent[];
+  allDayEvents: AllDayEvent[];
   tasks: Task[];
 }
 

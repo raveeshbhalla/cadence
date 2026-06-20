@@ -36,6 +36,10 @@ input:focus-visible,
   outline-offset: 2px;
 }
 
+input.capture-input:focus-visible {
+  outline: none !important;
+}
+
 .keycap {
   display: inline-flex;
   align-items: center;
@@ -145,6 +149,27 @@ input:focus-visible,
   transition: background 0.12s ease, color 0.12s ease;
 }
 
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.075), transparent);
+  animation: skeletonSweep 1.35s ease-in-out infinite;
+}
+
+@keyframes skeletonSweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 /* Honor the macOS "Reduce Motion" accessibility setting. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -154,5 +179,9 @@ input:focus-visible,
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .skeleton::after {
+    animation: none !important;
   }
 }

@@ -66,8 +66,8 @@ export const C = {
 } as const;
 
 // ── Grid geometry ────────────────────────────────────────────────
-export const START_HOUR = 7; // 7 AM
-export const END_HOUR = 22; // 10 PM
+export const START_HOUR = 0; // midnight
+export const END_HOUR = 24; // next midnight
 export const SNAP_MIN = 15;
 export const MIN_BLOCK_MIN = 15;
 export const PX_PER_HOUR_COZY = 56;

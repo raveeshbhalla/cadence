@@ -1,8 +1,9 @@
-import type { CalEvent, Task } from "../types";
+import type { AllDayEvent, CalEvent, Task } from "../types";
 import { addDays, weekDates } from "../lib/dates";
 
 export interface SeedData {
   events: CalEvent[];
+  allDayEvents: AllDayEvent[];
   tasks: Task[];
 }
 
@@ -30,6 +31,10 @@ export function makeSeed(weekMonday: string, today: string): SeedData {
     { id: "m12", date: w[4], start: 960, end: 1020, title: "Retro", cat: "eng" },
   ];
 
+  const allDayEvents: AllDayEvent[] = [
+    { id: "ad1@" + due(0), eventId: "ad1", date: due(0), title: "Launch freeze", color: "#5B9BFF", calendarId: "local-calendar" },
+  ];
+
   const tasks: Task[] = [
     { id: "o1", title: "Fix onboarding crash", project: "Engineering", cat: "eng", est: 60, status: "needsAction", due: due(-2), completed: null, source: "gtasks" },
     { id: "o2", title: "Send investor update", project: "Work", cat: "work", est: 30, status: "needsAction", due: due(-1), completed: null, source: "gtasks" },
@@ -53,5 +58,5 @@ export function makeSeed(weekMonday: string, today: string): SeedData {
     { id: "e3", title: "Intro: designer candidate", project: "", cat: "email", est: 10, status: "needsAction", due: null, completed: null, source: "gmail", meta: "Alex Kim" },
   ];
 
-  return { events, tasks };
+  return { events, allDayEvents, tasks };
 }

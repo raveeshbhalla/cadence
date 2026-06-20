@@ -7,6 +7,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
     title: "Capture & commands",
     items: [
       ["⌘N", "New task / capture"],
+      ["⌘T", "Triage tasks"],
       ["⌘K", "Command palette"],
       ["⌘Z", "Undo last change"],
       ["⌘J", "Join next meeting"],
@@ -18,14 +19,17 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["T", "Go to this week"],
       ["[  ]", "Previous / next week"],
       ["G", "Go to date…"],
+      ["G D", "Day view"],
+      ["G W", "Week view"],
+      ["G F", "Focus view"],
       ["?", "This shortcuts list"],
     ],
   },
   {
     title: "On the grid",
     items: [
-      ["drag", "Pull out a time block (event by default)"],
-      ["[ ]", "In capture: make it a task"],
+      ["drag", "Pull out a task block"],
+      ["Tab", "Switch capture task / event"],
       ["click", "Open a meeting / edit a task block"],
       ["Esc", "Close any dialog"],
     ],

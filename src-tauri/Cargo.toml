@@ -25,6 +25,8 @@ open = "5"
 base64 = "0.22"
 sha2 = "0.10"
 rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [profile.release]
 codegen-units = 1

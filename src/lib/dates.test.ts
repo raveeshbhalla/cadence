@@ -31,8 +31,12 @@ describe("dates", () => {
     expect(mondayOf(new Date(2026, 5, 21))).toBe("2026-06-15"); // Sun → that Mon
   });
 
-  it("weekDates gives Mon–Fri", () => {
-    expect(weekDates("2026-06-15")).toEqual(["2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19"]);
+  it("weekDates gives Mon–Sun by default", () => {
+    expect(weekDates("2026-06-15")).toEqual(["2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19", "2026-06-20", "2026-06-21"]);
+  });
+
+  it("weekDates can still return a workweek", () => {
+    expect(weekDates("2026-06-15", 5)).toEqual(["2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19"]);
   });
 
   it("nextDow resolves on/after today", () => {

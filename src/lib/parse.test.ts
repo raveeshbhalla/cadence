@@ -67,6 +67,12 @@ describe("parseCapture", () => {
     const c = parseCapture("Review 2-3:30pm", TODAY);
     expect(c.time).toBe(14 * 60);
     expect(c.est).toBe(90);
+
+    const d = parseCapture("Wei and Bo's tomorrow 11-4pm", TODAY);
+    expect(d.title).toBe("Wei and Bo's");
+    expect(d.date).toBe("2026-06-18");
+    expect(d.time).toBe(11 * 60);
+    expect(d.est).toBe(5 * 60);
   });
 
   it("does not treat a bare number range as a time", () => {

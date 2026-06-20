@@ -43,17 +43,15 @@ export function mondayOf(d: Date): string {
   return dateKey(x);
 }
 
-/** The Mon-onward keys of the week starting at `mondayKey` (5 = Mon–Fri, 7 = full). */
-export function weekDates(mondayKey: string, count = 5): string[] {
+/** The Mon-onward keys of the week starting at `mondayKey` (7 = Mon–Sun). */
+export function weekDates(mondayKey: string, count = 7): string[] {
   return Array.from({ length: count }, (_, i) => addDays(mondayKey, i));
 }
 
-/** Default week to show: current week, or the upcoming Monday on weekends. */
+/** Default week to show: the week containing today. */
 export function defaultWeekMonday(): string {
   const t = new Date();
-  const dow = t.getDay(); // 0 Sun .. 6 Sat
-  const m = mondayOf(t);
-  return dow === 0 || dow === 6 ? addDays(m, 7) : m;
+  return mondayOf(t);
 }
 
 export const weekdayShort = (k: string) => WD[parseKey(k).getDay()];

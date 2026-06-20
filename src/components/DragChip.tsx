@@ -11,7 +11,10 @@ export function DragChip() {
   const y = usePointer((p) => p.y);
   const accent = useApp((s) => s.accent);
   const title = useApp((s) => {
-    if (s.drag && s.drag.active) return s.drag.payload.title;
+    if (s.drag && s.drag.active) {
+      if (s.railDropTarget) return s.railDropTarget.valid ? `${s.drag.payload.title} → ${s.railDropTarget.label}` : `Can’t move to ${s.railDropTarget.label}`;
+      return s.drag.payload.title;
+    }
     if (s.eventDrag && s.eventDrag.active) return s.eventDrag.title;
     return null;
   });

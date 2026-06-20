@@ -79,7 +79,7 @@ and spells out durations so you never have to do calendar arithmetic.
 
 ### Plan & triage
 - Unified week / day / 7-day grid of meetings + scheduled tasks
-- Drag any task onto the grid to time-block it (linked back to Google Tasks + Calendar)
+- Drag any task onto the grid to time-block it (stored on the Google Task, not as a Calendar event)
 - Move / resize / unschedule blocks; everything snaps to 15 minutes
 - Keyboard **Triage mode** — slot overdue + today's tasks into open gaps
 - **"What should I do now?"** focus bar — current activity, next up, or the best task to start

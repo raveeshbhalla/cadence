@@ -1,10 +1,13 @@
-import { useMemo, type PointerEvent } from "react";
+import { useMemo, type CSSProperties, type PointerEvent } from "react";
 import { ACCENT_FG, C, CATS } from "../theme";
 import { useApp } from "../store/app";
-import { buildRail, chipLabelFor, nowFocus, type RailRow } from "../store/selectors";
+import { buildRail, chipLabelFor, nowFocus, type RailRow, type RailSection } from "../store/selectors";
 import { fmtDur } from "../lib/format";
+import { RAIL_MOVE_ORDER, railDueForKey, railMoveLabel } from "../lib/railDrop";
 import { Hoverable } from "./Hoverable";
 import { Check, Mail } from "./Icon";
+
+const RAIL_ORDER = ["overdue", "today", "email", "inbox", "tomorrow", "thisweek", "nextweek", "later"];
 
 function FocusBar() {
   const accent = useApp((s) => s.accent);
@@ -15,11 +18,11 @@ function FocusBar() {
   const showEmail = useApp((s) => s.showEmail);
   const hiddenLists = useApp((s) => s.hiddenLists);
   const present = useApp((s) => s.presentMode);
-  const placeTask = useApp((s) => s.placeTask);
+  const startTriage = useApp((s) => s.startTriage);
 
   const f = useMemo(() => nowFocus({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
-  const heading = { in: "Now", next: "Up next", do: "Do now", clear: "Clear" }[f.kind];
-  const tint = f.kind === "in" ? "#57C77E" : f.kind === "do" ? accent : f.kind === "clear" ? C.textFaint2 : C.textMute;
+  const heading = { in: "Now", next: "Up next", triage: "Triage", clear: "Clear" }[f.kind];
+  const tint = f.kind === "in" ? "#57C77E" : f.kind === "triage" ? accent : f.kind === "clear" ? C.textFaint2 : C.textMute;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "9px 11px", background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, borderRadius: 10 }}>
@@ -31,14 +34,14 @@ function FocusBar() {
           {f.sub && <span style={{ color: C.textMute2 }}> · {f.sub}</span>}
         </div>
       </div>
-      {f.kind === "do" && f.taskId && (
+      {f.kind === "triage" && (
         <Hoverable
           as="button"
-          onClick={() => placeTask(f.taskId!, today, Math.min(21 * 60, Math.ceil(now / 15) * 15))}
+          onClick={startTriage}
           style={{ background: accent, color: ACCENT_FG, fontSize: 12, fontWeight: 600, border: "none", borderRadius: 7, padding: "5px 11px", cursor: "pointer", flex: "none" }}
           hover={{ filter: "brightness(0.94)" }}
         >
-          Start now
+          Triage
         </Hoverable>
       )}
     </div>
@@ -48,6 +51,7 @@ function FocusBar() {
 function Row({ row, accent }: { row: RailRow; accent: string }) {
   const startTaskDrag = useApp((s) => s.startTaskDrag);
   const toggleTask = useApp((s) => s.toggleTask);
+  const openEditor = useApp((s) => s.openEditor);
   const present = useApp((s) => s.presentMode);
   const c = CATS[row.cat] || CATS.work;
 
@@ -60,10 +64,10 @@ function Row({ row, accent }: { row: RailRow; accent: string }) {
     startTaskDrag({ id: row.id, title: row.title, est: row.est, cat: row.cat, done: row.done }, e.clientX, e.clientY);
   };
 
-  const showDayChip = ["tomorrow", "thisweek", "nextweek", "later"].includes(row.bucket);
+  const showDayChip = ["thisweek", "nextweek", "later"].includes(row.bucket);
 
   return (
-    <Hoverable style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 8 }} hover={{ background: C.rowHover }}>
+    <Hoverable onClick={() => openEditor(row.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 8, cursor: "pointer" }} hover={{ background: C.rowHover }}>
       <div
         onClick={onCheck as any}
         style={{
@@ -111,68 +115,141 @@ export function TaskRail() {
   const toggleArchived = useApp((s) => s.toggleArchived);
   const toggleTask = useApp((s) => s.toggleTask);
   const rollOverdue = useApp((s) => s.rollOverdue);
+  const isInitialHydrating = useApp((s) => s.isHydrating && !s.lastSync);
+  const dragActive = useApp((s) => !!(s.drag && s.drag.active));
+  const railDropTarget = useApp((s) => s.railDropTarget);
 
   const { sections, archived } = useMemo(
     () => buildRail({ tasks, showEmail, now, today, hiddenLists }),
     [tasks, showEmail, now, today, hiddenLists]
   );
+  const visibleSections = useMemo<RailSection[]>(() => {
+    if (!dragActive) return sections;
+    const byKey = new Map(sections.map((sec) => [sec.dropKey, sec]));
+    for (const key of RAIL_MOVE_ORDER) {
+      if (!byKey.has(key) && railDueForKey(key, today) !== undefined) {
+        byKey.set(key, { label: railMoveLabel(key), rows: [], color: null, dropKey: key });
+      }
+    }
+    return Array.from(byKey.values()).sort((a, b) => RAIL_ORDER.indexOf(a.dropKey) - RAIL_ORDER.indexOf(b.dropKey));
+  }, [dragActive, sections, today]);
 
   return (
     <div style={{ width: 352, flex: "none", background: C.windowBg, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "18px 18px 14px", flex: "none", borderBottom: `1px solid ${C.borderSoft}` }}>
         <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", color: C.text }}>Tasks</div>
-        <FocusBar />
+        {isInitialHydrating ? <FocusSkeleton /> : <FocusBar />}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "6px 12px 24px" }}>
-        {sections.map((sec) => (
-          <div key={sec.label}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 8px 5px" }}>
-              <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: sec.color || C.textMute2 }}>{sec.label}</span>
-              <span style={{ fontSize: 11, color: sec.color || C.textMute2, background: sec.color ? "rgba(229,115,107,0.14)" : "rgba(255,255,255,0.07)", borderRadius: 20, padding: "1px 7px" }}>{sec.rows.length}</span>
-              {sec.label === "Overdue" && (
-                <Hoverable as="button" onClick={rollOverdue} title="Move overdue tasks to today" style={{ marginLeft: "auto", background: "none", border: "none", color: C.overdue, fontSize: 11, cursor: "pointer" }} hover={{ color: "#fff" }}>
-                  → Today
-                </Hoverable>
-              )}
-            </div>
-            {sec.rows.map((row) => (
-              <Row key={row.key} row={row} accent={accent} />
-            ))}
-          </div>
-        ))}
+        {isInitialHydrating ? (
+          <RailSkeleton />
+        ) : (
+          <>
+            {visibleSections.map((sec) => {
+              const activeTarget = railDropTarget?.key === sec.dropKey;
+              return (
+                <div
+                  key={sec.label}
+                  data-rail-drop={sec.dropKey}
+                  data-rail-label={sec.label}
+                  style={{
+                    borderRadius: 10,
+                    border: activeTarget ? `1px solid ${railDropTarget!.valid ? accent : C.overdue}` : "1px solid transparent",
+                    background: activeTarget ? (railDropTarget!.valid ? "rgba(255,122,69,0.10)" : "rgba(229,115,107,0.10)") : "transparent",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 8px 5px" }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: sec.color || C.textMute2 }}>{sec.label}</span>
+                    <span style={{ fontSize: 11, color: sec.color || C.textMute2, background: sec.color ? "rgba(229,115,107,0.14)" : "rgba(255,255,255,0.07)", borderRadius: 20, padding: "1px 7px" }}>{sec.rows.length}</span>
+                    {sec.label === "Overdue" && (
+                      <Hoverable as="button" onClick={rollOverdue} title="Move overdue tasks to today" style={{ marginLeft: "auto", background: "none", border: "none", color: C.overdue, fontSize: 11, cursor: "pointer" }} hover={{ color: "#fff" }}>
+                        → Today
+                      </Hoverable>
+                    )}
+                  </div>
+                  {sec.rows.map((row) => (
+                    <Row key={row.key} row={row} accent={accent} />
+                  ))}
+                  {dragActive && sec.rows.length === 0 && <div style={{ height: 22 }} />}
+                </div>
+              );
+            })}
 
-        {archived.length > 0 && (
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "16px 8px 5px" }}>
-              <Check size={13} stroke="#57C77E" sw={2} />
-              <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: "#57C77E" }}>Completed</span>
-              <span style={{ fontSize: 11, color: "#57C77E", background: "rgba(87,199,126,0.14)", borderRadius: 20, padding: "1px 7px" }}>{archived.length}</span>
-              <Hoverable as="button" onClick={toggleArchived} style={{ marginLeft: "auto", background: "none", border: "none", color: C.textMute3, fontSize: 11, cursor: "pointer" }} hover={{ color: "#fff" }}>
-                {archivedShown ? "Hide" : "Show"}
-              </Hoverable>
-            </div>
-            {archivedShown &&
-              archived.map((row) => {
-                const c = CATS[row.cat] || CATS.work;
-                return (
-                  <Hoverable key={row.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 8, opacity: 0.7 }} hover={{ background: C.rowHover }}>
-                    <div onClick={() => toggleTask(row.id)} style={{ width: 18, height: 18, borderRadius: "50%", flex: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: c.dot, border: `1.5px solid ${c.dot}` }}>
-                      <Check />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, color: "#62656E", textDecoration: "line-through", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.title}</div>
-                      {row.completedLabel && <div style={{ fontSize: 10.5, color: "#57C77E", marginTop: 2 }}>Completed {row.completedLabel}</div>}
-                    </div>
-                    <span style={{ fontSize: 11, color: C.textMute3, flex: "none" }}>{fmtDur(row.est)}</span>
+            {archived.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "16px 8px 5px" }}>
+                  <Check size={13} stroke="#57C77E" sw={2} />
+                  <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: "#57C77E" }}>Completed</span>
+                  <span style={{ fontSize: 11, color: "#57C77E", background: "rgba(87,199,126,0.14)", borderRadius: 20, padding: "1px 7px" }}>{archived.length}</span>
+                  <Hoverable as="button" onClick={toggleArchived} style={{ marginLeft: "auto", background: "none", border: "none", color: C.textMute3, fontSize: 11, cursor: "pointer" }} hover={{ color: "#fff" }}>
+                    {archivedShown ? "Hide" : "Show"}
                   </Hoverable>
-                );
-              })}
-          </div>
+                </div>
+                {archivedShown &&
+                  archived.map((row) => {
+                    const c = CATS[row.cat] || CATS.work;
+                    return (
+                      <Hoverable key={row.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 8, opacity: 0.7 }} hover={{ background: C.rowHover }}>
+                        <div onClick={() => toggleTask(row.id)} style={{ width: 18, height: 18, borderRadius: "50%", flex: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: c.dot, border: `1.5px solid ${c.dot}` }}>
+                          <Check />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: "#62656E", textDecoration: "line-through", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.title}</div>
+                          {row.completedLabel && <div style={{ fontSize: 10.5, color: "#57C77E", marginTop: 2 }}>Completed {row.completedLabel}</div>}
+                        </div>
+                        <span style={{ fontSize: 11, color: C.textMute3, flex: "none" }}>{fmtDur(row.est)}</span>
+                      </Hoverable>
+                    );
+                  })}
+              </div>
+            )}
+          </>
         )}
 
         <div style={{ textAlign: "center", fontSize: 11, color: C.textFaint3, padding: "18px 0 4px" }}>Drag onto the calendar to time-block · drag a block to move or resize</div>
       </div>
     </div>
+  );
+}
+
+function Skel({ style }: { style?: CSSProperties }) {
+  return <span className="skeleton" style={{ display: "block", borderRadius: 7, ...style }} />;
+}
+
+function FocusSkeleton() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "9px 11px", background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+      <Skel style={{ width: 7, height: 7, borderRadius: "50%", flex: "none" }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Skel style={{ width: 48, height: 10, marginBottom: 7 }} />
+        <Skel style={{ width: "72%", height: 13 }} />
+      </div>
+    </div>
+  );
+}
+
+function RailSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((section) => (
+        <div key={section}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 8px 5px" }}>
+            <Skel style={{ width: 78 + section * 16, height: 12 }} />
+            <Skel style={{ width: 22, height: 15, borderRadius: 20 }} />
+          </div>
+          {[0, 1, 2].map((row) => (
+            <div key={row} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px" }}>
+              <Skel style={{ width: 18, height: 18, borderRadius: "50%", flex: "none" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Skel style={{ width: `${82 - row * 12}%`, height: 13, marginBottom: 7 }} />
+                <Skel style={{ width: `${54 + row * 8}%`, height: 10 }} />
+              </div>
+              <Skel style={{ width: 28, height: 11, flex: "none" }} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </>
   );
 }

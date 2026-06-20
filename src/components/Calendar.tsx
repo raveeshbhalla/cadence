@@ -1,4 +1,4 @@
-import { useMemo, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, type PointerEvent } from "react";
 import { ACCENT_FG, C, CATS, END_HOUR, START_HOUR, pxPerHour } from "../theme";
 import type { DropTarget, GridItem, SelDragState } from "../types";
 import { fmtDur, fmtTime } from "../lib/format";
@@ -16,6 +16,18 @@ interface PositionedItem {
   height: number;
   left: string;
   width: string;
+}
+
+interface TopLaneItem {
+  id: string;
+  kind: "event" | "task";
+  title: string;
+  color: string;
+  textColor: string;
+  est: number;
+  cat: keyof typeof CATS;
+  calendarId?: string;
+  declined?: boolean;
 }
 
 const FALLBACK_CALENDAR_ID = "local-calendar";
@@ -39,6 +51,7 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
   const present = useApp((s) => s.presentMode);
   const { item } = pi;
   const shownTitle = present ? (item.checkable ? "Task" : "Busy") : item.title;
+  const muted = item.done || item.declined;
   // Meetings colour by their calendar; task blocks by category.
   const c = item.color ? { fill: hexToRgba(item.color, 0.18), bar: item.color, text: "#EDEEF1" } : CATS[item.cat] || CATS.work;
 
@@ -53,6 +66,7 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
 
   return (
     <div
+      data-grid-id={item.id}
       onPointerDown={onBodyDown}
       style={{
         position: "absolute",
@@ -69,14 +83,14 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
         color: c.text,
         fontSize: 11.5,
         lineHeight: 1.25,
-        opacity: item.done ? 0.42 : 1,
-        textDecoration: item.done ? "line-through" : "none",
+        opacity: muted ? 0.42 : 1,
+        textDecoration: muted ? "line-through" : "none",
         zIndex: 2,
         cursor: "grab",
       }}
     >
-      <div onPointerDown={onResize("top")} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 7, cursor: "ns-resize", zIndex: 4 }} />
-      <div onPointerDown={onResize("bottom")} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 7, cursor: "ns-resize", zIndex: 4 }} />
+      <div data-resize-edge="top" onPointerDown={onResize("top")} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 7, cursor: "ns-resize", zIndex: 4 }} />
+      <div data-resize-edge="bottom" onPointerDown={onResize("bottom")} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 7, cursor: "ns-resize", zIndex: 4 }} />
       <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
         {item.checkable && (
           <div
@@ -90,7 +104,7 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {item.conflict && <span title="Overlaps another meeting" style={{ color: C.overdue, marginRight: 3 }}>⚠</span>}
+            {item.conflict && <span title="Conflicts with another meeting" style={{ color: C.overdue, marginRight: 3 }}>⚠</span>}
             {shownTitle}
           </div>
           <div style={{ opacity: 0.72, fontSize: 10, whiteSpace: "nowrap" }}>{fmtTime(item.start)} · {fmtDur(item.end - item.start)}</div>
@@ -234,8 +248,8 @@ export function Calendar() {
   const viewMonday = useApp((s) => s.viewMonday);
   const view = useApp((s) => s.view);
   const focusDay = useApp((s) => s.focusDay);
-  const showWeekends = useApp((s) => s.showWeekends);
   const setView = useApp((s) => s.setView);
+  const startTaskDrag = useApp((s) => s.startTaskDrag);
   const present = useApp((s) => s.presentMode);
   const togglePresent = useApp((s) => s.togglePresent);
   const dropTarget = useApp((s) => s.dropTarget);
@@ -246,16 +260,27 @@ export function Calendar() {
   const prev = useApp((s) => s.prevWeek);
   const next = useApp((s) => s.nextWeek);
   const gotoToday = useApp((s) => s.gotoToday);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
 
   const px = pxPerHour(density);
   const dragging = dragActive || eventDragActive;
-  const week = useMemo(() => displayedDays({ view, focusDay, viewMonday, showWeekends }), [view, focusDay, viewMonday, showWeekends]);
+  const week = useMemo(() => displayedDays({ view, focusDay, viewMonday }), [view, focusDay, viewMonday]);
   const availByDay = useMemo(
     () => week.map((date) => availabilitySlots.map((sl, i) => ({ sl, i })).filter((x) => x.sl.date === date)),
     [week, availabilitySlots]
   );
   const gridHeight = (END_HOUR - START_HOUR) * px;
   const nowTop = (now / 60 - START_HOUR) * px;
+
+  useEffect(() => {
+    if (view !== "day" || focusDay !== today) return;
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const id = requestAnimationFrame(() => {
+      el.scrollTop = Math.max(0, Math.min(gridHeight, nowTop - px * 1.25));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [view, focusDay, today, density]);
 
   const hours = useMemo(() => {
     const arr: { label: string; topPx: number; labelTop: number }[] = [];
@@ -268,7 +293,7 @@ export function Calendar() {
     const items: GridItem[] = [
       ...events
         .filter((e) => !hiddenCals.includes(e.calendarId || FALLBACK_CALENDAR_ID))
-        .map((e) => ({ id: e.id, date: e.date, start: e.start, end: e.end, title: e.title, cat: e.cat, color: e.color, checkable: false, done: false })),
+        .map((e) => ({ id: e.id, date: e.date, start: e.start, end: e.end, title: e.title, cat: e.cat, color: e.color, checkable: false, done: false, declined: e.responseStatus === "declined" })),
       ...tasks
         .filter((t) => {
           const key = taskListKey(t);
@@ -279,8 +304,8 @@ export function Calendar() {
 
     return week.map((date) => {
       const dayItems = items.filter((it) => it.date === date);
-      // Mark meetings that overlap another meeting (double-booked).
-      const meetings = dayItems.filter((it) => !it.checkable);
+      // Mark non-declined meetings that conflict with another meeting.
+      const meetings = dayItems.filter((it) => !it.checkable && !it.declined);
       for (const a of meetings)
         if (meetings.some((b) => b !== a && b.start < a.end && b.end > a.start)) a.conflict = true;
       const pk = pack(dayItems);
@@ -305,18 +330,43 @@ export function Calendar() {
   const [monthName, yearStr] = monthLabel(midDay).split(" ");
   const load = useMemo(() => dayLoad({ tasks, events, now, today, showEmail, hiddenLists }), [tasks, events, now, today, showEmail, hiddenLists]);
   const conflicts = useMemo(() => perDay.reduce((n, day) => n + day.filter((pi) => pi.item.conflict).length, 0), [perDay]);
-  const allDayByDay = useMemo(
-    () => week.map((date) => allDayEvents.filter((a) => a.date === date && !hiddenCals.includes(a.calendarId || FALLBACK_CALENDAR_ID))),
-    [week, allDayEvents, hiddenCals]
+  const topLaneByDay = useMemo(
+    () =>
+      week.map((date) => {
+        const eventsForDay: TopLaneItem[] = allDayEvents
+          .filter((a) => a.date === date && !hiddenCals.includes(a.calendarId || FALLBACK_CALENDAR_ID))
+          .map((a) => ({
+            id: a.id,
+            kind: "event",
+            title: a.title,
+            color: a.color || "#5B9BFF",
+            textColor: "#EDEEF1",
+            est: 30,
+            cat: "work",
+            calendarId: a.calendarId,
+            declined: a.responseStatus === "declined",
+          }));
+        const tasksForDay: TopLaneItem[] = tasks
+          .filter((t) => {
+            const key = taskListKey(t);
+            return t.status !== "completed" && !t.block && t.due === date && !(key && hiddenLists.includes(key));
+          })
+          .map((t) => {
+            const c = CATS[t.cat] || CATS.work;
+            return { id: t.id, kind: "task", title: t.title, color: c.bar, textColor: c.text, est: t.est, cat: t.cat };
+          });
+        return [...eventsForDay, ...tasksForDay];
+      }),
+    [week, allDayEvents, tasks, hiddenCals, hiddenLists]
   );
-  const hasAllDay = allDayByDay.some((d) => d.length > 0);
+  const hasTopLane = topLaneByDay.some((d) => d.length > 0);
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.calendarBg }}>
       {/* header */}
       <div style={{ height: 52, flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", borderBottom: `1px solid ${C.borderSoft}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", color: C.text }}>
+          <span data-calendar-month style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", color: C.text }}>
             {monthName} <span style={{ color: C.textMute3, fontWeight: 500 }}>{yearStr}</span>
           </span>
           <div style={{ display: "flex", gap: 2 }}>
@@ -340,8 +390,8 @@ export function Calendar() {
             </span>
           )}
           {conflicts > 0 && (
-            <span title="Overlapping meetings this week" style={{ fontSize: 11.5, fontWeight: 600, color: C.overdue, background: "rgba(229,115,107,0.14)", borderRadius: 20, padding: "3px 9px" }}>
-              ⚠ {conflicts} overlap{conflicts > 1 ? "s" : ""}
+            <span title="Conflicting meetings this week" style={{ fontSize: 11.5, fontWeight: 600, color: C.overdue, background: "rgba(229,115,107,0.14)", borderRadius: 20, padding: "3px 9px" }}>
+              ⚠ {conflicts} conflict{conflicts > 1 ? "s" : ""}
             </span>
           )}
           <span
@@ -353,6 +403,7 @@ export function Calendar() {
           <div style={{ display: "flex", gap: 4, background: C.titlebarBg, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 2 }}>
             {switchPill("Day", view === "day", () => setView("day"))}
             {switchPill("Week", view === "week", () => setView("week"))}
+            {switchPill("Focus", view === "focus", () => setView("focus"))}
           </div>
         </div>
       </div>
@@ -382,29 +433,48 @@ export function Calendar() {
       </div>
 
       {/* all-day banner lane */}
-      {hasAllDay && (
+      {hasTopLane && (
         <div style={{ flex: "none", display: "flex", borderBottom: `1px solid ${C.borderSoft}`, background: C.calendarBg, minHeight: 26 }}>
           <div style={{ width: 56, flex: "none", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8 }}>
             <span style={{ fontSize: 9.5, color: C.textFaint2, letterSpacing: "0.04em" }}>all-day</span>
           </div>
-          {allDayByDay.map((items, di) => (
+          {topLaneByDay.map((items, di) => (
             <div key={di} style={{ flex: 1, borderLeft: `1px solid ${C.hairline}`, padding: "3px 3px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-              {items.slice(0, 2).map((a) => {
-                const col = a.color || "#5B9BFF";
+              {items.slice(0, 3).map((a) => {
+                const declined = !!a.declined;
                 return (
-                  <div key={a.id} style={{ fontSize: 10.5, fontWeight: 500, color: "#EDEEF1", background: hexToRgba(col, 0.2), borderLeft: `2px solid ${col}`, borderRadius: 4, padding: "1px 5px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {present ? "Busy" : a.title}
+                  <div
+                    key={`${a.kind}:${a.id}`}
+                    data-top-lane-kind={a.kind}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      startTaskDrag(
+                        {
+                          id: a.id,
+                          title: a.title,
+                          est: a.est,
+                          cat: a.cat,
+                          source: a.kind === "event" ? "allDayEvent" : "task",
+                          calendarId: a.calendarId,
+                        },
+                        e.clientX,
+                        e.clientY
+                      );
+                    }}
+                    style={{ fontSize: 10.5, fontWeight: 500, color: a.textColor, background: hexToRgba(a.color, 0.18), borderLeft: `2px solid ${a.color}`, borderRadius: 4, padding: "1px 5px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: declined ? 0.42 : 1, textDecoration: declined ? "line-through" : "none", cursor: "grab" }}
+                  >
+                    {present ? (a.kind === "task" ? "Task" : "Busy") : a.title}
                   </div>
                 );
               })}
-              {items.length > 2 && <span style={{ fontSize: 9.5, color: C.textFaint, paddingLeft: 4 }}>+{items.length - 2} more</span>}
+              {items.length > 3 && <span style={{ fontSize: 9.5, color: C.textFaint, paddingLeft: 4 }}>+{items.length - 3} more</span>}
             </div>
           ))}
         </div>
       )}
 
       {/* grid */}
-      <div style={{ flex: 1, overflowY: "auto", position: "relative" }}>
+      <div ref={gridScrollRef} data-calendar-scroller="true" style={{ flex: 1, overflowY: "auto", position: "relative" }}>
         <div style={{ position: "relative", height: gridHeight }}>
           {hours.map((hr, i) => (
             <div key={i}>

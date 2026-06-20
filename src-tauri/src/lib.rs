@@ -1,4 +1,5 @@
 mod auth;
+mod cache;
 mod calendar;
 mod config;
 mod gmail;
@@ -6,12 +7,19 @@ mod google;
 mod openai;
 mod tasks;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+
 use auth::Account;
+use cache::SyncSnapshotDto;
 use calendar::{CalendarDto, EventDto};
 use config::CredentialsStatus;
 use gmail::EmailDto;
 use openai::AiParse;
 use tasks::TaskDto;
+
+const BACKGROUND_SYNC_INTERVAL: Duration = Duration::from_secs(30 * 60);
+static SYNC_RUNNING: AtomicBool = AtomicBool::new(false);
 
 // ── Local credentials ─────────────────────────────────────────────
 #[tauri::command]
@@ -76,6 +84,82 @@ fn set_tray_title(app: tauri::AppHandle, text: String) -> Result<(), String> {
         tray.set_title(Some(text)).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+fn cache_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("sync-cache.sqlite3"))
+}
+
+fn cache_account() -> String {
+    auth::account()
+        .map(|a| a.email)
+        .unwrap_or_else(|| "default".to_string())
+}
+
+struct SyncGuard;
+
+impl Drop for SyncGuard {
+    fn drop(&mut self) {
+        SYNC_RUNNING.store(false, Ordering::SeqCst);
+    }
+}
+
+fn sync_window_around_now() -> (String, String) {
+    use chrono::{Duration as ChronoDuration, SecondsFormat, Utc};
+    let now = Utc::now();
+    (
+        (now - ChronoDuration::days(30)).to_rfc3339_opts(SecondsFormat::Secs, true),
+        (now + ChronoDuration::days(90)).to_rfc3339_opts(SecondsFormat::Secs, true),
+    )
+}
+
+fn refresh_cached_snapshot(
+    app: &tauri::AppHandle,
+    time_min: String,
+    time_max: String,
+) -> Result<SyncSnapshotDto, String> {
+    if SYNC_RUNNING.swap(true, Ordering::SeqCst) {
+        return Err("sync already running".to_string());
+    }
+    let _guard = SyncGuard;
+
+    let path = cache_path(app)?;
+    let account = auth::account()
+        .map(|a| a.email)
+        .ok_or_else(|| "not signed in".to_string())?;
+    let fresh = cache::FreshSync {
+        tasks: tasks::list().ok(),
+        calendars: calendar::list_calendars().ok(),
+        events: calendar::list(&time_min, &time_max).ok(),
+        emails: gmail::unreplied().ok(),
+    };
+    if fresh.tasks.is_none()
+        && fresh.calendars.is_none()
+        && fresh.events.is_none()
+        && fresh.emails.is_none()
+    {
+        return Err("all Google sync requests failed".to_string());
+    }
+    cache::write_fresh(&path, &account, fresh)
+}
+
+#[tauri::command]
+fn sync_cached_snapshot(app: tauri::AppHandle) -> Result<SyncSnapshotDto, String> {
+    cache::read_snapshot(&cache_path(&app)?, &cache_account())
+}
+
+#[tauri::command]
+async fn sync_refresh_snapshot(
+    app: tauri::AppHandle,
+    time_min: String,
+    time_max: String,
+) -> Result<SyncSnapshotDto, String> {
+    tauri::async_runtime::spawn_blocking(move || refresh_cached_snapshot(&app, time_min, time_max))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ── Google Tasks ──────────────────────────────────────────────────
@@ -160,27 +244,29 @@ async fn events_search(
 }
 
 #[tauri::command]
-async fn event_create(
+async fn event_create_meeting(
     title: String,
     start: String,
     end: String,
-    task_id: String,
+    guests: Vec<String>,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || calendar::create(&title, &start, &end, &task_id))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        calendar::create_meeting(&title, &start, &end, guests)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-async fn event_create_meeting(title: String, start: String, end: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || calendar::create_meeting(&title, &start, &end))
-        .await
-        .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
-async fn event_update(event_id: String, start: String, end: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || calendar::update(&event_id, &start, &end))
+async fn event_update(
+    calendar_id: String,
+    event_id: String,
+    start: String,
+    end: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        calendar::update(&calendar_id, &event_id, &start, &end)
+    })
         .await
         .map_err(|e| e.to_string())?
 }
@@ -197,6 +283,19 @@ async fn event_delete(event_id: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || calendar::delete(&event_id))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn event_set_rsvp(
+    calendar_id: String,
+    event_id: String,
+    response_status: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        calendar::set_rsvp(&calendar_id, &event_id, &response_status)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ── Gmail ─────────────────────────────────────────────────────────
@@ -324,6 +423,27 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn setup_background_sync(app: &tauri::App) {
+    use tauri::Emitter;
+
+    let app = app.handle().clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(BACKGROUND_SYNC_INTERVAL);
+        if auth::account().is_none() {
+            continue;
+        }
+
+        let (time_min, time_max) = sync_window_around_now();
+        match refresh_cached_snapshot(&app, time_min, time_max) {
+            Ok(snapshot) => {
+                let _ = app.emit("sync-cache-updated", snapshot.synced_at);
+            }
+            Err(e) if e == "sync already running" => {}
+            Err(e) => eprintln!("background sync failed: {e}"),
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     config::init();
@@ -332,6 +452,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             setup_tray(app)?;
+            setup_background_sync(app);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -351,6 +472,8 @@ pub fn run() {
             export_data,
             set_tray_title,
             set_tray_agenda,
+            sync_cached_snapshot,
+            sync_refresh_snapshot,
             tasks_list,
             task_set_status,
             task_create,
@@ -361,11 +484,11 @@ pub fn run() {
             events_list,
             calendars_list,
             events_search,
-            event_create,
             event_create_meeting,
             event_update,
             event_set_title,
             event_delete,
+            event_set_rsvp,
             gmail_unreplied,
             gmail_archive,
             ai_parse,
