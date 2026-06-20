@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { END_HOUR, START_HOUR, pxPerHour } from "../theme";
-import { fmtDur, fmtTime, isPast, yToMin, yToMinRaw } from "../lib/format";
+import { fmtTime, isPast, yToMin, yToMinRaw } from "../lib/format";
 import { weekdayShort } from "../lib/dates";
+import { isRailMoveKey, railDueForKey, railMoveLabel } from "../lib/railDrop";
 import type { AppState } from "./app";
 import type { DropTarget } from "../types";
 import { clearOpSnap, displayedDays, getOpSnap, useApp } from "./app";
@@ -12,15 +13,6 @@ const THRESH = 5;
 interface Slot {
   start: number;
   end: number;
-}
-
-/** Resolve a grid item by id to its backing slot (task block or meeting). */
-function findSlot(s: Pick<AppState, "tasks" | "events">, id: string): { title: string; start: number; end: number } | null {
-  const t = s.tasks.find((x) => x.id === id && x.block);
-  if (t && t.block) return { title: t.title, start: t.block.start, end: t.block.end };
-  const e = s.events.find((x) => x.id === id);
-  if (e) return { title: e.title, start: e.start, end: e.end };
-  return null;
 }
 
 /** Compute the new {start,end} for a resize drag of `slot`. */
@@ -38,15 +30,40 @@ function colAt(x: number, y: number): { di: number; top: number } | null {
   return { di, top: col.getBoundingClientRect().top };
 }
 
+function railDropAt(x: number, y: number, today: string): AppState["railDropTarget"] {
+  const el = document.elementFromPoint(x, y) as HTMLElement | null;
+  const target = el && el.closest ? (el.closest("[data-rail-drop]") as HTMLElement | null) : null;
+  const key = target?.getAttribute("data-rail-drop") || "";
+  if (!key) return null;
+  if (isRailMoveKey(key)) {
+    const due = railDueForKey(key, today);
+    return { key, label: railMoveLabel(key), valid: due !== undefined };
+  }
+  const label = target?.getAttribute("data-rail-label") || key;
+  return { key, label, valid: false };
+}
+
 function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.di === b.di && a.start === b.start && a.dur === b.dur && a.valid === b.valid && a.cat === b.cat;
 }
 
+function sameRailTarget(a: AppState["railDropTarget"], b: AppState["railDropTarget"]): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.key === b.key && a.valid === b.valid && a.label === b.label;
+}
+
 /** Attaches the document-level pointer + key listeners once, near the app root. */
 export function usePointerHandlers() {
   useEffect(() => {
+    let goPrefixTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearGoPrefix = () => {
+      if (goPrefixTimer) clearTimeout(goPrefixTimer);
+      goPrefixTimer = null;
+    };
+
     const onMove = (e: PointerEvent) => {
       const s = useApp.getState();
       const px = pxPerHour(s.density);
@@ -104,16 +121,20 @@ export function usePointerHandlers() {
         usePointer.getState().set(e.clientX, e.clientY);
         const active = d.active || Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > THRESH;
         let target: DropTarget | null = null;
+        let railTarget: AppState["railDropTarget"] = null;
         if (active) {
           const c = colAt(e.clientX, e.clientY);
           if (c && week[c.di]) {
             const st = yToMin(e.clientY, c.top, px);
             target = { di: c.di, start: st, dur: d.payload.est, cat: d.payload.cat, valid: !isPast(week[c.di], st, s.today, s.now) };
+          } else {
+            railTarget = railDropAt(e.clientX, e.clientY, s.today);
           }
         }
         const patch: Partial<AppState> = {};
         if (active !== d.active) patch.drag = { ...d, active };
         if (!sameTarget(target, s.dropTarget)) patch.dropTarget = target;
+        if (!sameRailTarget(railTarget, s.railDropTarget)) patch.railDropTarget = railTarget;
         if (Object.keys(patch).length) s.setInteraction(patch);
         return;
       }
@@ -133,15 +154,7 @@ export function usePointerHandlers() {
         const snap = getOpSnap();
         clearOpSnap();
         s.setInteraction({ resize: null });
-        const after = findSlot(useApp.getState(), rid);
-        const before = snap ? findSlot(snap, rid) : null;
-        if (after && before && (before.start !== after.start || before.end !== after.end)) {
-          s.commit("Resized “" + after.title + "” to " + fmtDur(after.end - after.start), {}, snap || undefined);
-          if (useApp.getState().tasks.some((t) => t.id === rid && t.block)) {
-            useApp.getState().syncBlock(rid);
-            useApp.getState().syncTaskTime(rid);
-          }
-        }
+        useApp.getState().commitResizeTime(rid, snap);
         return;
       }
 
@@ -166,7 +179,6 @@ export function usePointerHandlers() {
               // Moving a block also moves the task's due date to that day.
               const tasks = s.tasks.map((x) => (x.id === ed.id && x.block ? { ...x, due: date, block: { date, start, end: start + ed.dur } } : x));
               s.commit(label, { tasks, eventDrag: null, dropTarget: null });
-              useApp.getState().syncBlock(ed.id);
               useApp.getState().syncTaskDue(ed.id);
               useApp.getState().syncTaskTime(ed.id);
             } else {
@@ -186,22 +198,31 @@ export function usePointerHandlers() {
         return;
       }
 
-      // rail-task drop → schedule / reschedule
+      // rail-task drop → schedule on the grid or move to a rail date bucket
       const d = s.drag;
       if (d) {
         if (d.active) {
           const c = colAt(e.clientX, e.clientY);
           if (c && week[c.di]) {
             const start = yToMin(e.clientY, c.top, px);
-            s.setInteraction({ drag: null, dropTarget: null });
-            s.placeTask(d.payload.id, week[c.di], start);
+            s.setInteraction({ drag: null, dropTarget: null, railDropTarget: null });
+            if (d.payload.source === "allDayEvent") s.moveAllDayEventToTime(d.payload.id, week[c.di], start, d.payload.est);
+            else s.placeTask(d.payload.id, week[c.di], start);
             return;
           }
-        } else {
+          const railTarget = railDropAt(e.clientX, e.clientY, s.today);
+          if (railTarget) {
+            s.setInteraction({ drag: null, dropTarget: null, railDropTarget: null });
+            if (d.payload.source === "allDayEvent") s.setToast("Drop all-day events onto the calendar");
+            else if (isRailMoveKey(railTarget.key) && railTarget.valid) s.moveTaskToRail(d.payload.id, railTarget.key);
+            else s.setToast("Can’t move tasks to " + railTarget.label);
+            return;
+          }
+        } else if (d.payload.source !== "allDayEvent") {
           // a click (no drag) on a rail row → open its editor
           s.openEditor(d.payload.id);
         }
-        s.setInteraction({ drag: null, dropTarget: null });
+        s.setInteraction({ drag: null, dropTarget: null, railDropTarget: null });
         return;
       }
 
@@ -221,7 +242,7 @@ export function usePointerHandlers() {
             s.setInteraction({ selDrag: null });
             s.addAvailabilitySlot(date, a, b);
           } else {
-            s.setInteraction({ selDrag: null, modal: "capture", captureText: "", captureAsTask: false, captureContext: { asBlock: true, date, start: a, end: b } });
+            s.setInteraction({ selDrag: null, modal: "capture", captureText: "", captureAsTask: true, captureEventDate: date, captureEventStart: a, captureEventDur: b - a, captureEventGuests: "", captureContext: { asBlock: true, date, start: a, end: b } });
           }
         } else {
           s.setInteraction({ selDrag: null });
@@ -263,6 +284,11 @@ export function usePointerHandlers() {
         s.openCapture();
         return;
       }
+      if (meta && k === "t") {
+        e.preventDefault();
+        s.startTriage();
+        return;
+      }
       if (meta && k === "z") {
         e.preventDefault();
         s.undo();
@@ -289,11 +315,41 @@ export function usePointerHandlers() {
       // Single-key navigation — only when not typing or in another surface.
       if (meta || e.altKey) return;
       const el = document.activeElement as HTMLElement | null;
-      if (s.modal || s.availabilityMode || s.editorId || (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))) return;
+      if (s.modal || s.availabilityMode || s.editorId || (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))) {
+        clearGoPrefix();
+        return;
+      }
+
+      if (goPrefixTimer) {
+        e.preventDefault();
+        clearGoPrefix();
+        if (k === "d") s.setView("day");
+        else if (k === "w") s.setView("week");
+        else if (k === "f") s.setView("focus");
+        else if (k === "g" && s.view !== "focus") s.openGoto();
+        return;
+      }
+
+      if (s.view === "focus") {
+        if (k === "g") {
+          e.preventDefault();
+          goPrefixTimer = setTimeout(() => {
+            goPrefixTimer = null;
+          }, 650);
+        } else if (k === "?") s.openShortcuts();
+        return;
+      }
+
       if (k === "t") s.gotoToday();
       else if (k === "[") s.prevWeek();
       else if (k === "]") s.nextWeek();
-      else if (k === "g") s.openGoto();
+      else if (k === "g") {
+        e.preventDefault();
+        goPrefixTimer = setTimeout(() => {
+          useApp.getState().openGoto();
+          goPrefixTimer = null;
+        }, 650);
+      }
       else if (k === "?") s.openShortcuts();
     };
 
@@ -301,6 +357,7 @@ export function usePointerHandlers() {
     document.addEventListener("pointerup", onUp);
     window.addEventListener("keydown", onKey);
     return () => {
+      clearGoPrefix();
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
       window.removeEventListener("keydown", onKey);

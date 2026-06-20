@@ -8,6 +8,7 @@ describe("fmtTime", () => {
     expect(fmtTime(12 * 60)).toBe("12 PM");
     expect(fmtTime(14 * 60)).toBe("2 PM");
     expect(fmtTime(13 * 60 + 5)).toBe("1:05 PM");
+    expect(fmtTime(24 * 60)).toBe("12 AM");
   });
 });
 

@@ -14,6 +14,30 @@ export interface ParsedCapture {
   checkbox: boolean;
 }
 
+function to24(h: string, mm: string | undefined, ap: string | undefined): number {
+  let hh = parseInt(h) % (ap ? 12 : 24);
+  if (ap && /pm/i.test(ap)) hh += 12;
+  return hh * 60 + (mm ? parseInt(mm) : 0);
+}
+
+function parseTimeRange(m: RegExpMatchArray): { start: number; dur: number } | null {
+  const startAp = m[3];
+  const endAp = m[6];
+  // Only treat as a time range if a meridiem or ":" is present (avoid "2-3 things").
+  if (!startAp && !endAp && !m[2] && !m[5]) return null;
+
+  let start = to24(m[1], m[2], startAp || endAp);
+  const end = to24(m[4], m[5], endAp || startAp);
+
+  // "11-4pm" means 11 AM to 4 PM, while "2-3pm" means 2 PM to 3 PM.
+  if (!startAp && endAp && /pm/i.test(endAp) && start >= end) {
+    start = to24(m[1], m[2], "am");
+  }
+
+  if (end <= start) return null;
+  return { start, dur: end - start };
+}
+
 // weekday name → JS getDay() index (0 Sun .. 6 Sat)
 const DOW_MAP: Record<string, number> = {
   sun: 0, sunday: 0,
@@ -54,22 +78,11 @@ export function parseCapture(text: string, today: string): ParsedCapture {
   // Time range, e.g. "7:45am-9am", "2-3pm", "9 to 10:30am" → start + duration.
   // (Parsed before plain duration so the range's digits aren't mistaken for one.)
   if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i))) {
-    const ap1 = m[3] || m[6];
-    const ap2 = m[6] || m[3];
-    // Only treat as a time range if a meridiem or ":" is present (avoid "2-3 things").
-    if (ap1 || ap2 || m[2] || m[5]) {
-      const to24 = (h: string, mm: string | undefined, ap: string | undefined) => {
-        let hh = parseInt(h) % (ap ? 12 : 24);
-        if (ap && /pm/i.test(ap)) hh += 12;
-        return hh * 60 + (mm ? parseInt(mm) : 0);
-      };
-      const startMin = to24(m[1], m[2], ap1);
-      const endMin = to24(m[4], m[5], ap2);
-      if (endMin > startMin) {
-        time = startMin;
-        est = endMin - startMin;
-        t = t.replace(m[0], " ");
-      }
+    const range = parseTimeRange(m);
+    if (range) {
+      time = range.start;
+      est = range.dur;
+      t = t.replace(m[0], " ");
     }
   }
   // Explicit duration, e.g. "~90m", "1h", "45 min" (overrides a range's implied length).
@@ -192,20 +205,12 @@ export function parseWhen(text: string, nowMin: number, today: string): ParsedWh
   let t = " " + (text || "").toLowerCase().trim() + " ";
   const resolved = resolveWhenDate(t, today);
   t = resolved.text;
-  const to24 = (h: string, mm: string | undefined, ap: string | undefined) => {
-    let hh = parseInt(h) % (ap ? 12 : 24);
-    if (ap && /pm/.test(ap)) hh += 12;
-    return hh * 60 + (mm ? parseInt(mm) : 0);
-  };
 
   // Range: "8-9pm", "8:30-9", "9 to 10:30am"
   const r = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
   if (r) {
-    const ap1 = r[3] || r[6];
-    const ap2 = r[6] || r[3];
-    const s = to24(r[1], r[2], ap1);
-    const e = to24(r[4], r[5], ap2);
-    if (e > s) return { date: resolved.date, start: s, dur: e - s };
+    const range = parseTimeRange(r);
+    if (range) return { date: resolved.date, start: range.start, dur: range.dur };
   }
 
   // Optional explicit duration.

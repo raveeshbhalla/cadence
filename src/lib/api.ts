@@ -37,7 +37,7 @@ export interface EventDto {
   start: string; // RFC3339 dateTime, or YYYY-MM-DD for all-day
   end: string;
   allDay: boolean;
-  cadenceTaskId: string | null;
+  cadenceTaskId: string | null; // legacy Cadence task-block marker; skipped as a meeting
   calendarId: string;
   color: string;
   location: string | null;
@@ -45,6 +45,8 @@ export interface EventDto {
   hangoutLink: string | null;
   declined: boolean;
   timeZone: string | null;
+  responseStatus: "needsAction" | "declined" | "tentative" | "accepted" | null;
+  canRsvp: boolean;
 }
 
 export interface CalendarDto {
@@ -67,6 +69,14 @@ export interface AiParse {
   time: number | null; // minutes from midnight
   durationMin: number | null;
   list: string | null;
+}
+
+export interface SyncSnapshotDto {
+  tasks: TaskDto[];
+  calendars: CalendarDto[];
+  events: EventDto[];
+  emails: EmailDto[];
+  syncedAt: number | null;
 }
 
 const MOCK_CREDENTIALS_KEY = "cadence.mockCredentialsConfigured";
@@ -194,18 +204,13 @@ export const api = {
     return invoke<EventDto[]>("events_search", { q, timeMin, timeMax });
   },
 
-  /** Create a time-block event linked to a task. Returns the event id. */
-  async createEvent(title: string, start: string, end: string, taskId: string): Promise<string> {
-    return invoke<string>("event_create", { title, start, end, taskId });
-  },
-
   /** Create a plain calendar event (a meeting). Returns the event id. */
-  async createMeeting(title: string, start: string, end: string): Promise<string> {
-    return invoke<string>("event_create_meeting", { title, start, end });
+  async createMeeting(title: string, start: string, end: string, guests: string[] = []): Promise<string> {
+    return invoke<string>("event_create_meeting", { title, start, end, guests });
   },
 
-  async updateEvent(eventId: string, start: string, end: string): Promise<void> {
-    return invoke<void>("event_update", { eventId, start, end });
+  async updateEvent(calendarId: string, eventId: string, start: string, end: string): Promise<void> {
+    return invoke<void>("event_update", { calendarId, eventId, start, end });
   },
 
   async setEventTitle(eventId: string, title: string): Promise<void> {
@@ -214,6 +219,11 @@ export const api = {
 
   async deleteEvent(eventId: string): Promise<void> {
     return invoke<void>("event_delete", { eventId });
+  },
+
+  async setEventRsvp(calendarId: string, eventId: string, responseStatus: "needsAction" | "declined" | "tentative" | "accepted"): Promise<void> {
+    if (!isTauri) return;
+    return invoke<void>("event_set_rsvp", { calendarId, eventId, responseStatus });
   },
 
   /** Unreplied Primary-inbox messages. */
@@ -226,6 +236,16 @@ export const api = {
   async archiveEmail(threadId: string): Promise<void> {
     if (!isTauri) return;
     return invoke<void>("gmail_archive", { threadId });
+  },
+
+  async cachedSnapshot(): Promise<SyncSnapshotDto> {
+    if (!isTauri) return { tasks: [], calendars: [], events: [], emails: [], syncedAt: null };
+    return invoke<SyncSnapshotDto>("sync_cached_snapshot");
+  },
+
+  async refreshSnapshot(timeMin: string, timeMax: string): Promise<SyncSnapshotDto> {
+    if (!isTauri) return { tasks: [], calendars: [], events: [], emails: [], syncedAt: null };
+    return invoke<SyncSnapshotDto>("sync_refresh_snapshot", { timeMin, timeMax });
   },
 
   /** Parse a capture line with the model (locale-aware). Throws if unavailable. */

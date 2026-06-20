@@ -23,7 +23,8 @@ export function CommandPalette() {
     return [
       { id: "new", name: "New task", hint: "⌘N", glyph: "＋", run: () => s.openCapture() },
       { id: "side", name: (s.sidebarHidden ? "Show" : "Hide") + " sidebar", hint: "", glyph: "▤", run: () => { s.toggleSidebar(); s.closeModal(); } },
-      { id: "triage", name: "Triage tasks", hint: "Slot overdue + today", glyph: "⚡", run: () => { s.closeModal(); s.startTriage(); } },
+      { id: "triage", name: "Triage tasks", hint: "⌘T", glyph: "⚡", run: () => { s.closeModal(); s.startTriage(); } },
+      { id: "focus", name: "Focus view", hint: "Today agenda", glyph: "◉", run: () => { s.closeModal(); s.setView("focus"); } },
       { id: "avail", name: "Share availability", hint: "Copy open slots", glyph: "◷", run: () => { s.closeModal(); s.shareAvailability(); } },
       { id: "meet", name: "Meet with…", hint: "Find a time", glyph: "◎", run: () => { s.closeModal(); s.setToast("Meet with… (demo)"); } },
       { id: "email", name: (s.showEmail ? "Hide" : "Show") + " Gmail · Primary", hint: "Email source", glyph: "✉", run: () => { s.toggleEmailSource(); s.closeModal(); } },

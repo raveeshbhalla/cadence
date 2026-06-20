@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ACCENT_FG, C, CATS } from "../theme";
 import { useApp } from "../store/app";
 import { catFromProject } from "../lib/format";
@@ -8,6 +8,16 @@ import { Hoverable } from "./Hoverable";
 import { ChevronLeft, ChevronRight, Mail, Plus } from "./Icon";
 
 const MINI_HEAD = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+function monthStartKey(date: string): string {
+  const d = parseKey(date);
+  return dateKey(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+function addMonths(date: string, n: number): string {
+  const d = parseKey(date);
+  return dateKey(new Date(d.getFullYear(), d.getMonth() + n, 1));
+}
 
 export function Sidebar() {
   const accent = useApp((s) => s.accent);
@@ -22,29 +32,34 @@ export function Sidebar() {
   const toggleList = useApp((s) => s.toggleList);
   const toggleEmailSource = useApp((s) => s.toggleEmailSource);
   const openCapture = useApp((s) => s.openCapture);
-  const prev = useApp((s) => s.prevWeek);
-  const next = useApp((s) => s.nextWeek);
   const jumpToDate = useApp((s) => s.jumpToDate);
   const today = useApp((s) => s.today);
   const viewMonday = useApp((s) => s.viewMonday);
   const view = useApp((s) => s.view);
   const focusDay = useApp((s) => s.focusDay);
+  const isInitialHydrating = useApp((s) => s.isHydrating && !s.lastSync);
+  const centerAnchor = view === "day" ? focusDay : view === "focus" ? today : weekDates(viewMonday)[2];
+  const [miniMonth, setMiniMonth] = useState(() => monthStartKey(centerAnchor));
+
+  useEffect(() => {
+    setMiniMonth(monthStartKey(centerAnchor));
+  }, [centerAnchor]);
 
   const { miniCells, miniMonthLabel } = useMemo(() => {
     const week = new Set(weekDates(viewMonday));
-    const anchor = parseKey(weekDates(viewMonday)[2]);
+    const anchor = parseKey(miniMonth);
     const y = anchor.getFullYear();
     const mo = anchor.getMonth();
     const firstDow = (new Date(y, mo, 1).getDay() + 6) % 7;
     const dim = new Date(y, mo + 1, 0).getDate();
-    const cells: { n: number | null; key: string; date: string | null; style: React.CSSProperties }[] = [];
+    const cells: { n: number | null; key: string; date: string | null; style: CSSProperties }[] = [];
     for (let i = 0; i < firstDow; i++) cells.push({ n: null, key: `blank-${i}`, date: null, style: {} });
     for (let d = 1; d <= dim; d++) {
       const key = dateKey(new Date(y, mo, d));
       const isToday = key === today;
       const isSelected = view === "day" ? key === focusDay : isToday;
       const inWeek = week.has(key);
-      const style: React.CSSProperties = {
+      const style: CSSProperties = {
         appearance: "none",
         border: "none",
         fontSize: 11,
@@ -64,8 +79,8 @@ export function Sidebar() {
       } else style.color = C.textMute;
       cells.push({ n: d, key, date: key, style });
     }
-    return { miniCells: cells, miniMonthLabel: monthLabel(weekDates(viewMonday)[2]) };
-  }, [accent, focusDay, today, view, viewMonday]);
+    return { miniCells: cells, miniMonthLabel: monthLabel(miniMonth) };
+  }, [accent, focusDay, miniMonth, today, view, viewMonday]);
 
   const listCounts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -89,18 +104,18 @@ export function Sidebar() {
 
   const emailCount = tasks.filter((t) => t.status !== "completed" && t.source === "gmail").length;
 
-  const sectionLabel: React.CSSProperties = { marginTop: 18, fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2, marginBottom: 6 };
+  const sectionLabel: CSSProperties = { marginTop: 18, fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textFaint2, marginBottom: 6 };
 
   return (
     <div style={{ width: 236, flex: "none", background: C.sidebarBg, borderRight: `1px solid ${C.borderSoft}`, display: "flex", flexDirection: "column", padding: "16px 14px", overflowY: "auto" }}>
       {/* mini month */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: C.text3 }}>{miniMonthLabel}</span>
+        <span data-mini-month style={{ fontSize: 13, fontWeight: 600, color: C.text3 }}>{miniMonthLabel}</span>
         <div style={{ display: "flex", gap: 2 }}>
-          <Hoverable as="button" onClick={prev} style={{ background: "none", border: "none", color: C.textMute3, cursor: "pointer", padding: 2 }} hover={{ color: "#fff" }}>
+          <Hoverable as="button" data-mini-prev onClick={() => setMiniMonth((m) => addMonths(m, -1))} style={{ background: "none", border: "none", color: C.textMute3, cursor: "pointer", padding: 2 }} hover={{ color: "#fff" }}>
             <ChevronLeft />
           </Hoverable>
-          <Hoverable as="button" onClick={next} style={{ background: "none", border: "none", color: C.textMute3, cursor: "pointer", padding: 2 }} hover={{ color: "#fff" }}>
+          <Hoverable as="button" data-mini-next onClick={() => setMiniMonth((m) => addMonths(m, 1))} style={{ background: "none", border: "none", color: C.textMute3, cursor: "pointer", padding: 2 }} hover={{ color: "#fff" }}>
             <ChevronRight />
           </Hoverable>
         </div>
@@ -124,17 +139,27 @@ export function Sidebar() {
 
       {/* email sources */}
       <div style={sectionLabel}>Email</div>
-      <Hoverable onClick={toggleEmailSource} style={{ display: "flex", alignItems: "center", gap: 9, padding: 6, borderRadius: 7, cursor: "pointer" }} hover={{ background: C.rowHover }}>
-        <Mail />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, color: C.text4 }}>Gmail · Primary</div>
-          <div style={{ fontSize: 10.5, color: C.textFaint }}>{showEmail ? `On · ${emailCount} need reply` : "Hidden"}</div>
-        </div>
-        <Toggle on={showEmail} accent={accent} />
-      </Hoverable>
+      {isInitialHydrating ? (
+        <SidebarSkeletonRow iconSize={14} metaWidth="46%" />
+      ) : (
+        <Hoverable onClick={toggleEmailSource} style={{ display: "flex", alignItems: "center", gap: 9, padding: 6, borderRadius: 7, cursor: "pointer" }} hover={{ background: C.rowHover }}>
+          <Mail />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, color: C.text4 }}>Gmail · Primary</div>
+            <div style={{ fontSize: 10.5, color: C.textFaint }}>{showEmail ? `On · ${emailCount} need reply` : "Hidden"}</div>
+          </div>
+          <Toggle on={showEmail} accent={accent} />
+        </Hoverable>
+      )}
 
       {/* calendars */}
-      {(calendars.length > 0 || events.length > 0) && (
+      {isInitialHydrating ? (
+        <>
+          <div style={sectionLabel}>Calendars</div>
+          <SidebarSkeletonRow titleWidth="62%" />
+          <SidebarSkeletonRow titleWidth="48%" />
+        </>
+      ) : (calendars.length > 0 || events.length > 0) && (
         <>
           <div style={sectionLabel}>Calendars</div>
           {(calendars.length ? calendars : [{ id: "local-calendar", summary: "Calendar", color: accent, primary: true }]).map((cal) => {
@@ -150,7 +175,14 @@ export function Sidebar() {
       )}
 
       {/* lists */}
-      {taskLists.length > 0 && (
+      {isInitialHydrating ? (
+        <>
+          <div style={sectionLabel}>Tasks</div>
+          <SidebarSkeletonRow iconSize={8} titleWidth="58%" count />
+          <SidebarSkeletonRow iconSize={8} titleWidth="70%" count />
+          <SidebarSkeletonRow iconSize={8} titleWidth="42%" count />
+        </>
+      ) : taskLists.length > 0 && (
         <>
           <div style={sectionLabel}>Tasks</div>
           {taskLists.map((list) => {
@@ -173,6 +205,23 @@ export function Sidebar() {
         New task
         <span className="keycap" style={{ marginLeft: "auto" }}>⌘N</span>
       </Hoverable>
+    </div>
+  );
+}
+
+function Skel({ style }: { style?: CSSProperties }) {
+  return <span className="skeleton" style={{ display: "block", borderRadius: 7, ...style }} />;
+}
+
+function SidebarSkeletonRow({ iconSize = 11, titleWidth = "72%", metaWidth, count = false }: { iconSize?: number; titleWidth?: string; metaWidth?: string; count?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 6px", minHeight: 28 }}>
+      <Skel style={{ width: iconSize, height: iconSize, borderRadius: iconSize <= 8 ? 2 : 4, flex: "none" }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Skel style={{ width: titleWidth, height: 12 }} />
+        {metaWidth && <Skel style={{ width: metaWidth, height: 9, marginTop: 5 }} />}
+      </div>
+      {count && <Skel style={{ width: 18, height: 11, flex: "none" }} />}
     </div>
   );
 }

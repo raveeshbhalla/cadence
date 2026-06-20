@@ -3,7 +3,7 @@ import type { CategoryKey } from "../theme";
 import { addDays, diffDays, monthShort, mondayOf, parseKey, weekdayShort } from "./dates";
 
 export function fmtTime(m: number): string {
-  const h = Math.floor(m / 60);
+  const h = ((Math.floor(m / 60) % 24) + 24) % 24;
   const mm = ((m % 60) + 60) % 60;
   const ap = h >= 12 ? "PM" : "AM";
   let hh = h % 12;

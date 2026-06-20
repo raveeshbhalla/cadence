@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::google;
@@ -6,18 +6,18 @@ use crate::google;
 const BASE: &str = "https://tasks.googleapis.com/tasks/v1";
 
 /// A task as the frontend consumes it (camelCase JSON).
-#[derive(Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskDto {
     pub id: String,
     pub list_id: String,
     pub list_title: String,
     pub title: String,
-    pub status: String,                // "needsAction" | "completed"
-    pub due: Option<String>,           // YYYY-MM-DD
-    pub completed: Option<String>,     // RFC3339
+    pub status: String,            // "needsAction" | "completed"
+    pub due: Option<String>,       // YYYY-MM-DD
+    pub completed: Option<String>, // RFC3339
     pub notes: Option<String>,
-    pub from_email: bool,              // created from / linked to a Gmail message
+    pub from_email: bool, // created from / linked to a Gmail message
     pub email_thread_id: Option<String>, // best-effort Gmail thread id
 }
 
@@ -68,7 +68,9 @@ pub fn list() -> Result<Vec<TaskDto>, String> {
 
         let tasks = google::get_json(
             &token,
-            &format!("{BASE}/lists/{list_id}/tasks?showCompleted=true&showHidden=true&maxResults=100"),
+            &format!(
+                "{BASE}/lists/{list_id}/tasks?showCompleted=true&showHidden=true&maxResults=100"
+            ),
         )?;
 
         for t in tasks["items"].as_array().unwrap_or(&empty) {
@@ -186,7 +188,12 @@ pub fn delete(list_id: &str, id: &str) -> Result<(), String> {
 
 /// Create a task in a list (use "@default" for the default list). `notes` may
 /// carry a `[cadence-email:<threadId>]` marker for email-derived tasks.
-pub fn create(list_id: &str, title: &str, due: Option<String>, notes: Option<String>) -> Result<TaskDto, String> {
+pub fn create(
+    list_id: &str,
+    title: &str,
+    due: Option<String>,
+    notes: Option<String>,
+) -> Result<TaskDto, String> {
     let token = google::token()?;
     let mut body = json!({ "title": title });
     if let Some(d) = &due {

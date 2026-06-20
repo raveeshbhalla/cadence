@@ -12,11 +12,12 @@ interface HoverableProps {
   onMouseEnter?: (e: MouseEvent) => void;
   children?: ReactNode;
   dragRegion?: boolean;
+  [key: `data-${string}`]: string | boolean | undefined;
 }
 
 /** Lightweight inline-style hover wrapper — keeps fidelity with the design's style-hover. */
 export const Hoverable = forwardRef<HTMLElement, HoverableProps>(function Hoverable(
-  { as = "div", style, hover, className, title, href, onClick, onPointerDown, onMouseEnter, children, dragRegion },
+  { as = "div", style, hover, className, title, href, onClick, onPointerDown, onMouseEnter, children, dragRegion, ...rest },
   ref,
 ) {
   const [h, setH] = useState(false);
@@ -35,6 +36,7 @@ export const Hoverable = forwardRef<HTMLElement, HoverableProps>(function Hovera
       }}
       onMouseLeave={() => setH(false)}
       style={h ? { ...style, ...hover } : style}
+      {...rest}
       {...(dragRegion ? { "data-tauri-drag-region": true } : {})}
     >
       {children}

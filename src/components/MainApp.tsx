@@ -8,6 +8,7 @@ import { usePointerHandlers } from "../store/usePointerHandlers";
 import { Titlebar } from "./Titlebar";
 import { Sidebar } from "./Sidebar";
 import { Calendar } from "./Calendar";
+import { FocusView } from "./FocusView";
 import { TaskRail } from "./TaskRail";
 import { Capture } from "./Capture";
 import { CommandPalette } from "./CommandPalette";
@@ -36,6 +37,7 @@ export function MainApp() {
   const now = useApp((s) => s.now);
   const today = useApp((s) => s.today);
   const presentMode = useApp((s) => s.presentMode);
+  const view = useApp((s) => s.view);
 
   // Keep the now-line and date buckets current.
   useEffect(() => {
@@ -131,9 +133,15 @@ export function MainApp() {
     <div className="no-select" style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.windowBg, overflow: "hidden" }}>
       <Titlebar />
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-        {!sidebarHidden && <Sidebar />}
-        <Calendar />
-        <TaskRail />
+        {view === "focus" ? (
+          <FocusView />
+        ) : (
+          <>
+            {!sidebarHidden && <Sidebar />}
+            <Calendar />
+            <TaskRail />
+          </>
+        )}
       </div>
 
       <DragChip />

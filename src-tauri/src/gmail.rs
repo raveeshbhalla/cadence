@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::google;
@@ -6,7 +6,7 @@ use crate::google;
 const BASE: &str = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 /// An unreplied Primary message surfaced as a lightweight task.
-#[derive(Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailDto {
     pub id: String,
@@ -37,7 +37,10 @@ pub fn unreplied() -> Result<Vec<EmailDto>, String> {
     let client = google::client();
 
     let q = "in:inbox category:primary -from:me newer_than:30d";
-    let list = google::get_json(&token, &format!("{BASE}/messages?maxResults=15&q={}", urlencode(q)))?;
+    let list = google::get_json(
+        &token,
+        &format!("{BASE}/messages?maxResults=15&q={}", urlencode(q)),
+    )?;
 
     let empty = vec![];
     let mut out = Vec::new();
@@ -48,7 +51,9 @@ pub fn unreplied() -> Result<Vec<EmailDto>, String> {
             continue;
         }
         let msg: Value = client
-            .get(format!("{BASE}/messages/{id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject"))
+            .get(format!(
+                "{BASE}/messages/{id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject"
+            ))
             .bearer_auth(&token)
             .send()
             .map_err(|e| e.to_string())?
@@ -69,7 +74,12 @@ pub fn unreplied() -> Result<Vec<EmailDto>, String> {
                 _ => {}
             }
         }
-        out.push(EmailDto { id, thread_id, sender, subject });
+        out.push(EmailDto {
+            id,
+            thread_id,
+            sender,
+            subject,
+        });
     }
     Ok(out)
 }
@@ -90,7 +100,9 @@ fn urlencode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
             _ => out.push_str(&format!("%{b:02X}")),
         }
     }

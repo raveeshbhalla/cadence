@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::google;
@@ -7,26 +7,28 @@ const BASE: &str = "https://www.googleapis.com/calendar/v3";
 
 /// A calendar event as the frontend consumes it. Times are raw RFC3339 strings;
 /// the frontend converts them to local date + minutes.
-#[derive(Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventDto {
     pub id: String,
     pub title: String,
-    pub start: String,   // RFC3339 dateTime, or YYYY-MM-DD for all-day
+    pub start: String, // RFC3339 dateTime, or YYYY-MM-DD for all-day
     pub end: String,
     pub all_day: bool,
-    pub cadence_task_id: Option<String>, // set when this event is a Cadence time block
+    pub cadence_task_id: Option<String>, // legacy Cadence task-block event marker; skipped by the frontend
     pub calendar_id: String,
     pub color: String,
     pub location: Option<String>,
     pub description: Option<String>,
     pub hangout_link: Option<String>,
-    pub declined: bool,        // the user declined this invite
+    pub declined: bool,            // the user declined this invite
     pub time_zone: Option<String>, // explicit IANA zone on the event start, if any
+    pub response_status: Option<String>,
+    pub can_rsvp: bool,
 }
 
 /// A calendar in the user's calendar list.
-#[derive(Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CalendarDto {
     pub id: String,
@@ -48,8 +50,15 @@ pub fn list_calendars() -> Result<Vec<CalendarDto>, String> {
         }
         out.push(CalendarDto {
             id,
-            summary: c["summaryOverride"].as_str().or_else(|| c["summary"].as_str()).unwrap_or("Calendar").to_string(),
-            color: c["backgroundColor"].as_str().unwrap_or("#5B9BFF").to_string(),
+            summary: c["summaryOverride"]
+                .as_str()
+                .or_else(|| c["summary"].as_str())
+                .unwrap_or("Calendar")
+                .to_string(),
+            color: c["backgroundColor"]
+                .as_str()
+                .unwrap_or("#5B9BFF")
+                .to_string(),
             primary: c["primary"].as_bool().unwrap_or(false),
         });
     }
@@ -68,7 +77,10 @@ pub fn list(time_min: &str, time_max: &str) -> Result<Vec<EventDto>, String> {
         if cal_id.is_empty() {
             continue;
         }
-        let color = c["backgroundColor"].as_str().unwrap_or("#5B9BFF").to_string();
+        let color = c["backgroundColor"]
+            .as_str()
+            .unwrap_or("#5B9BFF")
+            .to_string();
         let url = format!(
             "{BASE}/calendars/{}/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin={}&timeMax={}",
             urlencode(cal_id),
@@ -101,7 +113,10 @@ pub fn search(q: &str, time_min: &str, time_max: &str) -> Result<Vec<EventDto>, 
         if cal_id.is_empty() {
             continue;
         }
-        let color = c["backgroundColor"].as_str().unwrap_or("#5B9BFF").to_string();
+        let color = c["backgroundColor"]
+            .as_str()
+            .unwrap_or("#5B9BFF")
+            .to_string();
         let url = format!(
             "{BASE}/calendars/{}/events?singleEvents=true&orderBy=startTime&maxResults=20&q={}&timeMin={}&timeMax={}",
             urlencode(cal_id),
@@ -129,11 +144,19 @@ fn build_event(ev: &Value, cal_id: &str, color: &str) -> Option<EventDto> {
         Some(dt) => (dt.to_string(), false),
         None => (start_obj["date"].as_str()?.to_string(), true),
     };
-    let end = end_obj["dateTime"].as_str().or_else(|| end_obj["date"].as_str()).unwrap_or(&start).to_string();
-    let declined = ev["attendees"]
-        .as_array()
-        .map(|atts| atts.iter().any(|a| a["self"].as_bool() == Some(true) && a["responseStatus"].as_str() == Some("declined")))
-        .unwrap_or(false);
+    let end = end_obj["dateTime"]
+        .as_str()
+        .or_else(|| end_obj["date"].as_str())
+        .unwrap_or(&start)
+        .to_string();
+    let self_response = ev["attendees"].as_array().and_then(|atts| {
+        atts.iter()
+            .find(|a| a["self"].as_bool() == Some(true))
+            .and_then(|a| a["responseStatus"].as_str())
+            .map(|s| s.to_string())
+    });
+    let declined = self_response.as_deref() == Some("declined");
+    let can_rsvp = self_response.is_some();
 
     Some(EventDto {
         id: ev["id"].as_str().unwrap_or_default().to_string(),
@@ -141,23 +164,53 @@ fn build_event(ev: &Value, cal_id: &str, color: &str) -> Option<EventDto> {
         start,
         end,
         all_day,
-        cadence_task_id: ev["extendedProperties"]["private"]["cadenceTaskId"].as_str().map(|s| s.to_string()),
+        cadence_task_id: ev["extendedProperties"]["private"]["cadenceTaskId"]
+            .as_str()
+            .map(|s| s.to_string()),
         calendar_id: cal_id.to_string(),
         color: color.to_string(),
         location: ev["location"].as_str().map(|s| s.to_string()),
         description: ev["description"].as_str().map(|s| s.to_string()),
-        hangout_link: ev["hangoutLink"].as_str().or_else(|| ev["conferenceData"]["entryPoints"][0]["uri"].as_str()).map(|s| s.to_string()),
+        hangout_link: ev["hangoutLink"]
+            .as_str()
+            .or_else(|| ev["conferenceData"]["entryPoints"][0]["uri"].as_str())
+            .map(|s| s.to_string()),
         declined,
         time_zone: ev["start"]["timeZone"].as_str().map(|s| s.to_string()),
+        response_status: self_response,
+        can_rsvp,
     })
 }
 
 /// Create a plain calendar event (a meeting, not a task block). Returns the id.
-pub fn create_meeting(title: &str, start: &str, end: &str) -> Result<String, String> {
+pub fn create_meeting(
+    title: &str,
+    start: &str,
+    end: &str,
+    guests: Vec<String>,
+) -> Result<String, String> {
     let token = google::token()?;
-    let body = json!({ "summary": title, "start": { "dateTime": start }, "end": { "dateTime": end } });
+    let attendees: Vec<Value> = guests
+        .into_iter()
+        .filter(|email| email.contains('@'))
+        .map(|email| json!({ "email": email }))
+        .collect();
+    let mut body =
+        json!({ "summary": title, "start": { "dateTime": start }, "end": { "dateTime": end } });
+    if !attendees.is_empty() {
+        body["attendees"] = Value::Array(attendees);
+    }
+    let url = if body["attendees"]
+        .as_array()
+        .map(|a| !a.is_empty())
+        .unwrap_or(false)
+    {
+        format!("{BASE}/calendars/primary/events?sendUpdates=all")
+    } else {
+        format!("{BASE}/calendars/primary/events")
+    };
     let v: Value = google::client()
-        .post(format!("{BASE}/calendars/primary/events"))
+        .post(url)
         .bearer_auth(&token)
         .json(&body)
         .send()
@@ -167,32 +220,60 @@ pub fn create_meeting(title: &str, start: &str, end: &str) -> Result<String, Str
     Ok(v["id"].as_str().unwrap_or_default().to_string())
 }
 
-/// Create a time-block event linked to a Cadence task. Returns the event id.
-pub fn create(title: &str, start: &str, end: &str, task_id: &str) -> Result<String, String> {
+/// Change the signed-in user's RSVP for an event invite.
+pub fn set_rsvp(calendar_id: &str, event_id: &str, response_status: &str) -> Result<(), String> {
+    match response_status {
+        "needsAction" | "declined" | "tentative" | "accepted" => {}
+        _ => return Err("invalid RSVP status".to_string()),
+    }
+
     let token = google::token()?;
+    let get_url = format!(
+        "{BASE}/calendars/{}/events/{}",
+        urlencode(calendar_id),
+        urlencode(event_id)
+    );
+    let ev = google::get_json(&token, &get_url)?;
+    let email = ev["attendees"]
+        .as_array()
+        .and_then(|atts| {
+            atts.iter()
+                .find(|a| a["self"].as_bool() == Some(true))
+                .and_then(|a| a["email"].as_str())
+        })
+        .ok_or_else(|| "no attendee RSVP on this event".to_string())?;
+
     let body = json!({
-        "summary": title,
-        "start": { "dateTime": start },
-        "end": { "dateTime": end },
-        "extendedProperties": { "private": { "cadenceTaskId": task_id } }
+        "attendeesOmitted": true,
+        "attendees": [{ "email": email, "responseStatus": response_status }]
     });
-    let v: Value = google::client()
-        .post(format!("{BASE}/calendars/primary/events"))
+    let resp = google::client()
+        .patch(format!(
+            "{BASE}/calendars/{}/events/{}?sendUpdates=all",
+            urlencode(calendar_id),
+            urlencode(event_id)
+        ))
         .bearer_auth(&token)
         .json(&body)
         .send()
-        .map_err(|e| e.to_string())?
-        .json()
         .map_err(|e| e.to_string())?;
-    Ok(v["id"].as_str().unwrap_or_default().to_string())
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(resp.text().unwrap_or_default())
+    }
 }
 
-/// Move/resize an existing block event.
-pub fn update(event_id: &str, start: &str, end: &str) -> Result<(), String> {
+/// Move/resize an existing calendar event.
+pub fn update(calendar_id: &str, event_id: &str, start: &str, end: &str) -> Result<(), String> {
     let token = google::token()?;
     let body = json!({ "start": { "dateTime": start }, "end": { "dateTime": end } });
     let resp = google::client()
-        .patch(format!("{BASE}/calendars/primary/events/{event_id}"))
+        .patch(format!(
+            "{BASE}/calendars/{}/events/{}",
+            urlencode(calendar_id),
+            urlencode(event_id)
+        ))
         .bearer_auth(&token)
         .json(&body)
         .send()
@@ -240,7 +321,9 @@ fn urlencode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
             _ => out.push_str(&format!("%{b:02X}")),
         }
     }
