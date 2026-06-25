@@ -4,11 +4,13 @@ import type { DropTarget, GridItem, SelDragState } from "../types";
 import { fmtDur, fmtTime } from "../lib/format";
 import { dayOfMonth, monthLabel, weekdayShort } from "../lib/dates";
 import { taskListKey } from "../lib/taskLists";
+import { meetingLink } from "../lib/meeting";
+import { api } from "../lib/api";
 import { pack } from "../lib/pack";
 import { dayLoad } from "../store/selectors";
 import { displayedDays, useApp } from "../store/app";
 import { Hoverable } from "./Hoverable";
-import { ChevronLeft, ChevronRight } from "./Icon";
+import { ChevronLeft, ChevronRight, VideoIcon } from "./Icon";
 
 interface PositionedItem {
   item: GridItem;
@@ -52,6 +54,8 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
   const { item } = pi;
   const shownTitle = present ? (item.checkable ? "Task" : "Busy") : item.title;
   const muted = item.done || item.declined;
+  const event = useApp((s) => (item.checkable ? undefined : s.events.find((e) => e.id === item.id)));
+  const join = event ? meetingLink(event) : undefined;
   // Meetings colour by their calendar; task blocks by category.
   const c = item.color ? { fill: hexToRgba(item.color, 0.18), bar: item.color, text: "#EDEEF1" } : CATS[item.cat] || CATS.work;
 
@@ -109,6 +113,20 @@ function GridBlock({ pi }: { pi: PositionedItem }) {
           </div>
           <div style={{ opacity: 0.72, fontSize: 10, whiteSpace: "nowrap" }}>{fmtTime(item.start)} · {fmtDur(item.end - item.start)}</div>
         </div>
+        {join && (
+          <button
+            type="button"
+            title="Join meeting"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              api.openUrl(join);
+            }}
+            style={{ width: 20, height: 20, border: "1px solid rgba(255,255,255,0.18)", borderRadius: 6, background: "rgba(0,0,0,0.16)", color: c.text, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flex: "none", padding: 0, position: "relative", zIndex: 6 }}
+          >
+            <VideoIcon size={12} />
+          </button>
+        )}
       </div>
     </div>
   );

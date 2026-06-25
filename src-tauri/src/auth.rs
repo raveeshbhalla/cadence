@@ -18,6 +18,7 @@ const SCOPES: &str = "openid email profile https://www.googleapis.com/auth/calen
 
 const KEYRING_SERVICE: &str = "com.cadence.app";
 const KEYRING_USER: &str = "google-tokens";
+const TOKEN_REFRESH_SKEW_SECS: u64 = 5 * 60;
 
 /// Fixed loopback redirect port. Must be registered as an Authorized redirect
 /// URI on the OAuth client: `http://127.0.0.1:8765` (a "Web application" client
@@ -129,7 +130,11 @@ pub fn clear_tokens() -> Result<(), String> {
 
 /// The current account, if signed in.
 pub fn account() -> Option<Account> {
-    load_tokens().map(|t| Account { email: t.email })
+    let t = load_tokens()?;
+    if now_secs().saturating_add(TOKEN_REFRESH_SKEW_SECS) >= t.expires_at {
+        let _ = access_token();
+    }
+    load_tokens().or(Some(t)).map(|t| Account { email: t.email })
 }
 
 fn b64url(bytes: &[u8]) -> String {
@@ -294,7 +299,7 @@ fn respond(stream: &mut std::net::TcpStream, message: &str) {
 /// Return a valid access token, refreshing it if expired. Used by API modules.
 pub fn access_token() -> Result<String, String> {
     let mut tokens = load_tokens().ok_or("not signed in")?;
-    if now_secs() < tokens.expires_at {
+    if now_secs().saturating_add(TOKEN_REFRESH_SKEW_SECS) < tokens.expires_at {
         return Ok(tokens.access_token);
     }
     // Refresh.

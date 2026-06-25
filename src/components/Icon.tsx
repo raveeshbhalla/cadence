@@ -81,6 +81,12 @@ export const CalendarIcon = ({ size = 18, stroke = "#D9A441" }: { size?: number;
   </Svg>
 );
 
+export const VideoIcon = ({ size = 15, stroke = "currentColor" }: { size?: number; stroke?: string }) => (
+  <Svg size={size} stroke={stroke} sw={2}>
+    <path d="M15 10.5V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3.5l5 4v-11z" />
+  </Svg>
+);
+
 export const ArrowRight = ({ size = 16, stroke = "#1A0E07" }: { size?: number; stroke?: string }) => (
   <Svg size={size} stroke={stroke} sw={2.4}>
     <path d="M5 12h14M13 6l6 6-6 6" />
