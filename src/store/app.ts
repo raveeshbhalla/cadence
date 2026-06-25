@@ -1337,7 +1337,7 @@ function pushNewTask(localId: string, title: string, due: string | null) {
     .createTask("@default", title, due)
     .then((dto) => {
       useApp.setState((st) => ({ tasks: st.tasks.map((t) => (t.id === localId ? { ...t, id: dto.id, listId: dto.listId } : t)) }));
-      // A captured focus block carries a time — keep it on the task notes.
+      // A captured time block carries a time — keep it on the task notes.
       if (useApp.getState().tasks.find((t) => t.id === dto.id)?.block) {
         useApp.getState().syncTaskTime(dto.id);
       }
